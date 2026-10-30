@@ -6,6 +6,7 @@ Laboratorio personal de paper trading de Sebastián: acciones argentinas, CEDEAR
 - **Inicio:** cartera simulada vs. mantener BTC, resultado de los bots reales, señales del día y tendencia por sector.
 - **Mercado:** BTC, ETH, SOL, YPF, Vista, Pampa, TGS, Central Puerto, Transener, Edenor, Mercado Libre y Globant. Detalle con gráfico, media de 20 días y niveles de compra por tramos.
 - **Laboratorio:**
+  - Fábrica de robots: genera ~340 reglas por activo y temporalidad (cruce de medias, ruptura, RSI, baja/alza), las prueba con velas de Binance (70% entrenamiento / 30% validación), filtra por robustez y deja adoptarlas en papel con señal en vivo.
   - Simulador de Bot de Grid de Binance spot con velas reales por hora (prueba 9 configuraciones).
   - Regla baja/alza (−3% por tramo, +5% de salida) probada sobre cualquier activo y período.
   - Seguimiento semanal de los 3 bots reales, con regla de corte en −15%.

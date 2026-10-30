@@ -413,6 +413,7 @@ function vInicio(){
         <div class="p">${px(a, S.datos[a.id].precio)}</div>
       </button>`).join("")}</div>` : `<div class="card"><p>Ningún activo está en zona de compra o venta. <span class="muted">Esperar también es una decisión.</span></p></div>`}
   </section>
+  ${typeof robotsInicio==="function" ? robotsInicio() : ""}
   <section class="sec">
     <h2>Tendencia por sector</h2>
     <div class="card">${Object.keys(sectores).length ? Object.entries(sectores).map(([sec, ks])=>{
@@ -500,16 +501,16 @@ function formCompra(id){
     <button class="btn gold full" onclick="comprar('${id}', +$('#fc-m').value, $('#fc-r').value); cerrar()">Confirmar compra simulada</button>`);
 }
 
-let LAB = "grid";
+let LAB = "fabrica";
 function vLab(){
   const el = $("#vista-lab");
   el.innerHTML = `
   <div class="sec"><p class="eyebrow">Laboratorio</p><h1>Probar antes de arriesgar</h1></div>
   <div class="tabs" role="tablist">
-    ${[["grid","Bot de Grid"],["regla","Regla baja/alza"],["bots","Mis bots"],["meme","Checklist memecoin"],["ajustes","Ajustes"]].map(([k,t])=>`<button role="tab" aria-selected="${LAB===k}" onclick="LAB='${k}';vLab()">${t}</button>`).join("")}
+    ${[["fabrica","Fábrica de robots"],["grid","Bot de Grid"],["regla","Regla baja/alza"],["bots","Mis bots"],["meme","Checklist memecoin"],["ajustes","Ajustes"]].map(([k,t])=>`<button role="tab" aria-selected="${LAB===k}" onclick="LAB='${k}';vLab()">${t}</button>`).join("")}
   </div>
   <div id="lab-c"></div>`;
-  ({grid:labGrid, regla:labRegla, bots:labBots, meme:labMeme, ajustes:labAjustes})[LAB]();
+  ({fabrica:labFabrica, grid:labGrid, regla:labRegla, bots:labBots, meme:labMeme, ajustes:labAjustes})[LAB]();
 }
 
 function labGrid(){
@@ -707,12 +708,12 @@ function guardarAjustes(){
   guardar("params", S.params); toast("Ajustes guardados");
 }
 function exportar(){
-  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat}, null, 2)], {type:"application/json"});
+  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:S.robots}, null, 2)], {type:"application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `inversion-lab-${hoy()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 function importar(file){
   if(!file) return; const r = new FileReader();
-  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
+  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat","robots"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
   r.readAsText(file);
 }
 
@@ -762,6 +763,7 @@ function contexto(){
   ACTIVOS.forEach(a=>{ const d = S.datos[a.id]; if(!d || d.error){ lin.push(`${a.nombre}: sin datos`); return; } const t = tendencia(d.serie), s = senal(a); lin.push(`${a.nombre} (${a.sector}): ${a.mon==="USDT"?"U$s ":"$"}${d.precio} hoy ${pct(d.var)}; tendencia ${t.txt} (20d ${pct(t.r20)}); señal ${s?s.txt:"—"}`); });
   const V = valorCartera(), C = S.cartera;
   lin.push(`Cartera simulada desde ${C.inicio}: disponible $${Math.round(C.ars)} y ${C.usdt.toFixed(2)} USDT; ${C.lotes.length} posiciones${C.lotes.length ? ": " + C.lotes.map(l=>`${l.activo} compra ${l.precio}`).join(", ") : ""}.`);
+  if(S.robots && S.robots.length) lin.push("Robots en papel: " + S.robots.map(r=>{ const s = senalRobot(r), v = r.vivo||{}; return `${r.nombre}: ${s.txt}${v.papel ? `, en papel ${pct(v.papel.ret,2)} vs mantener ${pct(v.hold,2)}` : ""}`; }).join("; "));
   const ub = ultimasFotos(); if(ub.length) lin.push("Bots reales: " + ub.map(f=>`Bot ${f.bot} ganancia $${f.ganancia} sobre $${f.capital} (${f.fecha})`).join("; "));
   return lin.join("\n").slice(0, 4900);
 }
@@ -790,9 +792,216 @@ async function enviar(){
   S.chat = S.chat.slice(-30); guardar("chat", S.chat); vSocio();
 }
 
+/* ============ Fábrica de robots ============
+   Genera miles de reglas, las prueba con velas reales de Binance (70% entrenamiento / 30% validación),
+   descarta las que no pasan y deja adoptar las sobrevivientes en papel. Solo compras en spot, sin apalancamiento. */
+const FAB_INT = {"1h":{dias:180, label:"1 hora"}, "4h":{dias:730, label:"4 horas"}, "1d":{dias:1000, label:"1 día"}};
+const FAB_SYMS = [["BTCUSDT","BTC"],["ETHUSDT","ETH"],["SOLUSDT","SOL"]];
+const FAMILIAS = {
+  cruce:  {nombre:"Cruce de medias", grid:{f:[5,10,20], s:[30,50,100,200]}},
+  ruptura:{nombre:"Ruptura", grid:{n:[10,20,50], m:[5,10,20]}},
+  rsi:    {nombre:"Rebote RSI", grid:{lo:[25,30,35], hi:[50,60,70]}},
+  baja:   {nombre:"Baja/alza", grid:{n:[10,20,50], e:[2,3,5], s:[3,5,8]}}
+};
+const FAB_SL = [0, 5, 10], FAB_TF = [false, true];
+S.robots = leer("robots", []);
+const VELAS_CACHE = {};
+
+async function velasRango(sym, interval, dias){
+  const key = sym+interval+dias; const c = VELAS_CACHE[key]; if(c && Date.now()-c.t < 10*60*1000) return c.v;
+  const fin = Date.now(), ini = fin - dias*864e5; let out = [], t = ini;
+  for(let pag=0; pag<8 && t < fin; pag++){
+    const k = await klines(sym, interval, 1000, t); if(!k.length) break;
+    out = out.concat(velasASerie(k)); t = k[k.length-1][0] + 1; if(k.length < 1000) break;
+  }
+  VELAS_CACHE[key] = {t:Date.now(), v:out}; return out;
+}
+function smaArr(c, n){ const o = new Array(c.length).fill(null); let s = 0; for(let i=0;i<c.length;i++){ s += c[i]; if(i>=n) s -= c[i-n]; if(i>=n-1) o[i] = s/n; } return o; }
+function rsiArr(c, n=14){ const o = new Array(c.length).fill(null); let g=0, l=0;
+  for(let i=1;i<c.length;i++){ const d = c[i]-c[i-1], up = Math.max(d,0), dn = Math.max(-d,0);
+    if(i<=n){ g += up; l += dn; if(i===n){ g/=n; l/=n; o[i] = l===0 ? 100 : 100-100/(1+g/l); } }
+    else { g = (g*(n-1)+up)/n; l = (l*(n-1)+dn)/n; o[i] = l===0 ? 100 : 100-100/(1+g/l); } }
+  return o; }
+function indicadores(v){
+  const c = v.map(x=>x.c), h = v.map(x=>x.h), l = v.map(x=>x.l), I = {c, h, l, sma:{}, rsi:rsiArr(c)};
+  [5,10,20,30,50,100,200].forEach(n=>I.sma[n] = smaArr(c, n));
+  return I;
+}
+function maxPrev(a, i, n){ let m = -Infinity; for(let j=i-n;j<i;j++) if(a[j] > m) m = a[j]; return m; }
+function minPrev(a, i, n){ let m = Infinity; for(let j=i-n;j<i;j++) if(a[j] < m) m = a[j]; return m; }
+function entra(R, I, i){
+  const p = R.p, c = I.c;
+  if(R.fam==="cruce"){ const f = I.sma[p.f][i], s = I.sma[p.s][i]; return f!=null && s!=null && f > s; }
+  if(R.fam==="ruptura") return i >= p.n && c[i] > maxPrev(c, i, p.n);
+  if(R.fam==="rsi") return I.rsi[i]!=null && I.rsi[i] < p.lo;
+  if(R.fam==="baja"){ const m = I.sma[p.n][i-1]; return m!=null && c[i] <= m*(1-p.e/100); }
+}
+function sale(R, I, i, entrada){
+  const p = R.p, c = I.c;
+  if(R.fam==="cruce"){ const f = I.sma[p.f][i], s = I.sma[p.s][i]; return f!=null && s!=null && f < s; }
+  if(R.fam==="ruptura") return i >= p.m && c[i] < minPrev(I.l, i, p.m);
+  if(R.fam==="rsi") return I.rsi[i]!=null && I.rsi[i] > p.hi;
+  if(R.fam==="baja") return c[i] >= entrada*(1+p.s/100);
+}
+// Corre un robot entre las velas i0 e i1. Opera al cierre de la vela; el stop se ejecuta en su precio.
+function correrRobot(R, I, i0, i1, fee){
+  let pos = false, ent = 0, eq = 1, pico = 1, dd = 0, ops = 0, gan = 0, desde = null;
+  for(let i=i0;i<=i1;i++){
+    if(pos){
+      let px = null;
+      if(R.sl && I.l[i] <= ent*(1-R.sl/100)) px = ent*(1-R.sl/100);
+      else if(sale(R, I, i, ent)) px = I.c[i];
+      if(px!=null){ const r = px*(1-fee)/(ent*(1+fee)); eq *= r; ops++; if(r>1) gan++; pos = false; }
+    } else if(entra(R, I, i) && (!R.tf || (I.sma[200][i]!=null && I.c[i] > I.sma[200][i]))){ pos = true; ent = I.c[i]; desde = i; }
+    const cur = pos ? eq*I.c[i]*(1-fee)/(ent*(1+fee)) : eq;
+    if(cur > pico) pico = cur; dd = Math.max(dd, (1-cur/pico)*100);
+  }
+  const fin = pos ? eq*I.c[i1]*(1-fee)/(ent*(1+fee)) : eq;
+  return {ret:(fin-1)*100, dd, ops, win: ops ? gan/ops*100 : 0, pos, ent, desde};
+}
+function nombreRobot(R){
+  const p = R.p, sym = R.sym.replace("USDT",""), base =
+    R.fam==="cruce" ? `Cruce ${p.f}/${p.s}` : R.fam==="ruptura" ? `Ruptura ${p.n}/${p.m}` : R.fam==="rsi" ? `RSI ${p.lo}→${p.hi}` : `Baja/alza ${p.n}: −${p.e}% / +${p.s}%`;
+  return `${sym} ${FAB_INT[R.int].label} · ${base}${R.sl ? ` · stop ${R.sl}%` : ""}${R.tf ? " · solo en tendencia" : ""}`;
+}
+function explicarRobot(R){
+  const p = R.p, v = FAB_INT[R.int].label.replace("1 ","");
+  const t = R.fam==="cruce" ? `Compra cuando la media de ${p.f} velas de ${v} pasa por encima de la de ${p.s}, y vende cuando cruza por debajo.`
+    : R.fam==="ruptura" ? `Compra cuando el precio supera el máximo de las últimas ${p.n} velas, y vende cuando perfora el mínimo de las últimas ${p.m}.`
+    : R.fam==="rsi" ? `Compra cuando el RSI cae debajo de ${p.lo} (sobreventa) y vende cuando supera ${p.hi}.`
+    : `Compra cuando el precio cae ${p.e}% bajo su media de ${p.n} velas y vende con +${p.s}%.`;
+  return t + (R.sl ? ` Si cae ${R.sl}% desde la compra, sale.` : "") + (R.tf ? " Solo compra si el precio está sobre su media de 200 velas." : "");
+}
+function combos(grid){ const ks = Object.keys(grid); let out = [{}];
+  for(const k of ks) out = out.flatMap(o=>grid[k].map((v,ix)=>Object.assign({}, o, {[k]:v, ["_"+k]:ix}))); return out; }
+function vecinos(A, B){ if(A.fam!==B.fam || A.sym!==B.sym || A.int!==B.int || A.sl!==B.sl || A.tf!==B.tf) return false;
+  let d = 0; for(const k of Object.keys(FAMILIAS[A.fam].grid)) d += Math.abs(A.p["_"+k]-B.p["_"+k]); return d===1; }
+
+let FAB_RES = null;
+async function fabricar(){
+  const syms = FAB_SYMS.filter(([s])=>$("#fb-"+s).checked).map(([s])=>s), ints = Object.keys(FAB_INT).filter(k=>$("#fi-"+k).checked);
+  if(!syms.length || !ints.length) return toast("Elegí al menos un activo y una temporalidad");
+  const box = $("#fb-res"), fee = S.params.comCri/100, todos = [], fallas = [];
+  $("#fb-go").disabled = true;
+  for(const sym of syms) for(const int of ints){
+    box.innerHTML = `<div class="card"><p class="muted">Bajando velas de ${sym} (${FAB_INT[int].label})…</p></div>`;
+    let v; try{ v = await velasRango(sym, int, FAB_INT[int].dias); }catch(e){ fallas.push(`${sym} ${FAB_INT[int].label}`); continue; }
+    if(v.length < 400){ fallas.push(`${sym} ${FAB_INT[int].label} (pocas velas)`); continue; }
+    box.innerHTML = `<div class="card"><p class="muted">Probando robots en ${sym} (${FAB_INT[int].label})… ${todos.length} probados</p></div>`;
+    await new Promise(r=>setTimeout(r, 20));
+    const I = indicadores(v), i0 = 200, corte = i0 + Math.floor((v.length-1-i0)*0.7), fin = v.length-1;
+    const holdE = (I.c[corte]/I.c[i0]-1)*100, holdV = (I.c[fin]/I.c[corte+1]-1)*100;
+    for(const fam of Object.keys(FAMILIAS)) for(const p of combos(FAMILIAS[fam].grid)){
+      if(fam==="cruce" && p.f >= p.s) continue;
+      if(fam==="rsi" && p.hi <= p.lo) continue;
+      for(const sl of FAB_SL) for(const tf of FAB_TF){
+        const R = {fam, p, sym, int, sl, tf};
+        R.e = correrRobot(R, I, i0, corte, fee); R.v = correrRobot(R, I, corte+1, fin, fee);
+        R.holdE = holdE; R.holdV = holdV; R.fechaCorte = v[corte].t; R.fechaFin = v[fin].t; R.fechaIni = v[i0].t;
+        todos.push(R);
+      }
+    }
+  }
+  const minOps = R => R.int==="1d" ? 4 : 8;
+  const etapa1 = todos.filter(R => R.e.ret > 0 && R.e.ops >= minOps(R) && R.e.dd < 35);
+  const etapa2 = etapa1.filter(R => R.v.ret > 0 && R.v.dd < 25 && R.v.ops >= 2);
+  const etapa3 = etapa2.filter(R => todos.filter(X => vecinos(R, X) && X.v.ret > 0 && X.e.ret > 0).length >= 2);
+  etapa3.forEach(R => R.score = R.v.ret / Math.max(R.v.dd, 2) + R.e.ret / Math.max(R.e.dd, 2) * 0.5);
+  etapa3.sort((a,b)=>b.score-a.score || (a.sl-b.sl));
+  const vistos = new Set();   // si el stop o el filtro no cambian nada, queda solo la versión más simple
+  const unicos = etapa3.filter(R => { const k = [R.fam, JSON.stringify(R.p), R.sym, R.int, R.v.ret.toFixed(3), R.e.ret.toFixed(3)].join("|"); if(vistos.has(k)) return false; vistos.add(k); return true; });
+  FAB_RES = {todos:todos.length, e1:etapa1.length, e2:etapa2.length, e3:etapa3.length, top:unicos.slice(0, 15), fallas};
+  $("#fb-go").disabled = false;
+  pintarFabrica();
+}
+function pintarFabrica(){
+  const box = $("#fb-res"); if(!box || !FAB_RES) return; const F = FAB_RES;
+  const barra = (n, txt) => `<div style="display:flex;justify-content:space-between;gap:8px"><span>${txt}</span><span class="mono">${n.toLocaleString("es-AR")}</span></div><div style="height:6px;border-radius:999px;background:var(--line);overflow:hidden"><div style="height:100%;width:${Math.max(1, n/F.todos*100)}%;background:var(--gold)"></div></div>`;
+  box.innerHTML = `
+  <div class="card">
+    <b>Embudo de la fábrica</b>
+    ${barra(F.todos, "Robots generados y probados")}
+    ${barra(F.e1, "Ganaron en entrenamiento (70% del historial)")}
+    ${barra(F.e2, "Ganaron también en validación (30% que no vieron)")}
+    ${barra(F.e3, "Robustos: sus versiones vecinas también ganan")}
+    ${F.fallas && F.fallas.length ? `<p class="small t-naranja">Sin datos: ${esc(F.fallas.join(", "))}</p>` : ""}
+    <p class="small muted">Descartados: ${F.todos ? pct((1-F.e3/F.todos)*100).replace("+","") : "—"}. Que sobrevivan pocos es buena señal: el filtro funciona.</p>
+  </div>
+  ${F.top.length ? `<div class="list">${F.top.map((R,ix)=>`
+    <div class="card">
+      <div class="sec-head"><b>${esc(nombreRobot(R))}</b></div>
+      <p class="small muted">${esc(explicarRobot(R))}</p>
+      <div class="grid2">
+        <div class="kpi"><span class="kl">Validación (${R.fechaCorte} → ${R.fechaFin})</span><b class="${clsPct(R.v.ret)}">${pct(R.v.ret)}</b><span class="ks">Mantener ${pct(R.holdV)} · caída máx ${R.v.dd.toFixed(1).replace(".",",")}% · ${R.v.ops} ops</span></div>
+        <div class="kpi"><span class="kl">Entrenamiento</span><b class="${clsPct(R.e.ret)}">${pct(R.e.ret)}</b><span class="ks">Mantener ${pct(R.holdE)} · ${R.e.ops} ops · ${R.e.win.toFixed(0)}% aciertos</span></div>
+      </div>
+      <button class="btn sm" onclick="adoptar(${ix})">Adoptar en papel</button>
+    </div>`).join("")}</div>`
+  : `<div class="card"><p>Ningún robot pasó todos los filtros. <span class="muted">Es un resultado válido: mejor no operar que operar con algo que no funciona.</span></p></div>`}
+  <p class="disc">Resultados pasados, con comisión ${S.params.comCri}% por lado. Un robot que pasó los filtros todavía tiene que demostrar que funciona en papel antes de usar dinero real.</p>`;
+}
+function adoptar(ix){
+  const R = FAB_RES.top[ix]; if(!R) return;
+  const r = {id:Date.now(), fam:R.fam, p:R.p, sym:R.sym, int:R.int, sl:R.sl, tf:R.tf, nombre:nombreRobot(R), desde:Date.now(), val:R.v.ret, holdV:R.holdV};
+  if(S.robots.some(x=>x.nombre===r.nombre)) return toast("Ese robot ya está adoptado");
+  S.robots.push(r); guardar("robots", S.robots); toast("Robot adoptado en papel"); estadoRobots();
+}
+// Estado en vivo de cada robot adoptado: si hoy está comprado o afuera, señal nueva y resultado desde que se adoptó.
+async function estadoRobots(){
+  const fee = S.params.comCri/100;
+  for(const r of S.robots){
+    try{
+      const v = await velasRango(r.sym, r.int, Math.min(FAB_INT[r.int].dias, r.int==="1h" ? 60 : r.int==="4h" ? 200 : 500));
+      const I = indicadores(v), fin = v.length-1, R = r;
+      const hoyEst = correrRobot(R, I, 200, fin, fee), ayerEst = correrRobot(R, I, 200, fin-1, fee);
+      const iA = v.findIndex(x=>x.ts >= r.desde);
+      const papel = iA >= 0 && iA < fin ? correrRobot(R, I, iA, fin, fee) : null;
+      r.vivo = {pos:hoyEst.pos, ent:hoyEst.ent, precio:I.c[fin], cambio: hoyEst.pos!==ayerEst.pos, papel, hold: iA>=0 ? (I.c[fin]/I.c[iA]-1)*100 : null, act:v[fin].t};
+    }catch(e){ r.vivo = {error:e.message}; }
+  }
+  if(VISTA==="lab" && LAB==="fabrica") pintarRobots();
+  if(VISTA==="inicio") vInicio();
+}
+function senalRobot(r){
+  const v = r.vivo; if(!v) return {txt:"Cargando", cls:"muted"}; if(v.error) return {txt:"Sin datos", cls:"t-rojo"};
+  if(v.cambio) return v.pos ? {txt:"Comprar ahora", cls:"t-azul"} : {txt:"Vender ahora", cls:"t-verde"};
+  return v.pos ? {txt:"Comprado", cls:"t-amarillo"} : {txt:"Afuera", cls:"muted"};
+}
+function pintarRobots(){
+  const el = $("#fb-robots"); if(!el) return;
+  el.innerHTML = S.robots.length ? `<div class="list">${S.robots.map(r=>{ const s = senalRobot(r), v = r.vivo || {}; return `
+    <div class="card">
+      <div class="sec-head"><b>${esc(r.nombre)}</b><span class="status ${s.cls}">${s.txt}</span></div>
+      <p class="small muted">Adoptado ${new Date(r.desde).toLocaleDateString("es-AR")} · Validación ${pct(r.val)}${v.precio ? ` · Precio ${usd(v.precio, v.precio<10?4:2)}` : ""}</p>
+      ${v.papel ? `<p class="small">En papel desde que se adoptó: <span class="${clsPct(v.papel.ret)}">${pct(v.papel.ret,2)}</span> · Mantener <span class="${clsPct(v.hold)}">${pct(v.hold,2)}</span> · ${v.papel.ops} ops</p>` : `<p class="small muted">Todavía no hay velas nuevas desde que se adoptó.</p>`}
+      <button class="btn sm ghost" onclick="S.robots=S.robots.filter(x=>x.id!==${r.id});guardar('robots',S.robots);pintarRobots()">Quitar</button>
+    </div>`; }).join("")}</div>`
+  : `<p class="muted small">Todavía no adoptaste ningún robot.</p>`;
+}
+function labFabrica(){
+  $("#lab-c").innerHTML = `
+  <div class="card">
+    <p class="small muted">Genera miles de robots con 4 tipos de reglas, los prueba con velas reales de Binance y descarta los que no pasan. Solo compras en spot, sin apalancamiento.</p>
+    <div><p class="eyebrow" style="margin-bottom:6px">Activos</p><div class="row2">${FAB_SYMS.map(([s,n])=>`<label class="chip" style="padding:8px 12px"><input type="checkbox" id="fb-${s}" ${s!=="SOLUSDT"?"checked":""}> ${n}</label>`).join("")}</div></div>
+    <div><p class="eyebrow" style="margin-bottom:6px">Temporalidad</p><div class="row2">${Object.entries(FAB_INT).map(([k,x])=>`<label class="chip" style="padding:8px 12px"><input type="checkbox" id="fi-${k}" ${k!=="1h"?"checked":""}> ${x.label}</label>`).join("")}</div></div>
+    <button class="btn gold full" id="fb-go" onclick="fabricar()">Fabricar robots</button>
+    <p class="small muted">Tarda entre 20 segundos y 2 minutos según lo que elijas.</p>
+  </div>
+  <div id="fb-res"></div>
+  <section class="sec"><div class="sec-head"><h2>Robots adoptados</h2><button class="btn sm ghost" onclick="estadoRobots()">Actualizar</button></div><div id="fb-robots"></div></section>`;
+  pintarFabrica(); pintarRobots();
+  if(S.robots.length && S.robots.some(r=>!r.vivo)) estadoRobots();
+}
+
+function robotsInicio(){
+  if(!S.robots.length) return `<section class="sec"><h2>Robots</h2><div class="card"><p class="small">Todavía no hay robots en prueba.</p><button class="btn sm gold" onclick="LAB='fabrica';irA('lab')">Ir a la fábrica de robots</button></div></section>`;
+  return `<section class="sec"><div class="sec-head"><h2>Robots en papel</h2><button class="btn sm ghost" onclick="LAB='fabrica';irA('lab')">Ver todos</button></div><div class="list">${S.robots.map(r=>{ const s = senalRobot(r), v = r.vivo || {}; return `
+    <div class="arow glass"><div><div class="n" style="font-size:14px">${esc(r.nombre)}</div><div class="s">${v.papel ? `En papel <span class="${clsPct(v.papel.ret)}">${pct(v.papel.ret,2)}</span> · Mantener ${pct(v.hold,2)}` : "Recién adoptado"}</div></div><span class="status ${s.cls}">${s.txt}</span></div>`; }).join("")}</div></section>`;
+}
+
 /* ============ Inicio ============ */
 render();
-cargarTodo();
+cargarTodo().then(()=>{ if(S.robots.length) estadoRobots(); });
 setInterval(()=>{ if(!document.hidden) cargarTodo(); }, 5*60*1000);
 if("serviceWorker" in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); }
 </script>
