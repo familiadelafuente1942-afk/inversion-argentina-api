@@ -727,12 +727,12 @@ function guardarAjustes(){
   guardar("params", S.params); toast("Ajustes guardados");
 }
 function exportar(){
-  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:S.robots, modelo:S.modelo}, null, 2)], {type:"application/json"});
+  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:S.robots, modelo:S.modelo, reales:S.reales}, null, 2)], {type:"application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `inversion-lab-${hoy()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 function importar(file){
   if(!file) return; const r = new FileReader();
-  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat","robots","modelo"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
+  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat","robots","modelo","reales"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
   r.readAsText(file);
 }
 
@@ -741,6 +741,7 @@ function vCartera(){
   const res = V.totARS && V.capTot ? (V.totARS/V.capTot-1)*100 : (V.ars/C.capARS-1)*100;
   el.innerHTML = `
   <div class="sec"><p class="eyebrow">Paper trading · desde ${C.inicio}</p><h1>Cartera</h1></div>
+  ${cardReales()}
   ${cardModelo()}
   <h2>Cartera simulada</h2>
   <div class="kpis">
@@ -785,6 +786,7 @@ function contexto(){
   const V = valorCartera(), C = S.cartera;
   lin.push(`Cartera simulada desde ${C.inicio}: disponible $${Math.round(C.ars)} y ${C.usdt.toFixed(2)} USDT; ${C.lotes.length} posiciones${C.lotes.length ? ": " + C.lotes.map(l=>`${l.activo} compra ${l.precio}`).join(", ") : ""}.`);
   if(S.robots && S.robots.length) lin.push("Robots en papel: " + S.robots.map(r=>{ const s = senalRobot(r), v = r.vivo||{}; return `${r.nombre}: ${s.txt}${v.papel ? `, en papel ${pct(v.papel.ret,2)} vs mantener ${pct(v.hold,2)}` : ""}`; }).join("; "));
+  if(S.reales && S.reales.posiciones.length){ const V = valorReales(); lin.push("Posiciones REALES de Sebastián: " + V.filas.map(f=>`${f.p.activo} ${f.p.cantidad} en ${f.p.broker}, compra ${f.p.precio}, resultado ${pct(f.res)}, tendencia ${f.tend?f.tend.txt:"—"}`).join("; ") + `; efectivo ${Math.round(V.efe)}.`); }
   if(MOD.listo){ const M = MODELOS[S.modelo.id], r = simModelo(M.pesos, S.modelo.desde); lin.push(`Cartera modelo ${M.nombre} en papel desde ${S.modelo.desde}: ${r?pct(r.res,2):"sin datos aún"}.`); }
   const ub = ultimasFotos(); if(ub.length) lin.push("Bots reales: " + ub.map(f=>`Bot ${f.bot} ganancia $${f.ganancia} sobre $${f.capital} (${f.fecha})`).join("; "));
   return lin.join("\n").slice(0, 4900);
@@ -1094,9 +1096,40 @@ function cardModelo(){
   </div>`;
 }
 
+
+/* ============ Posiciones reales (lo que Sebastián tiene de verdad) ============ */
+S.reales = Object.assign({posiciones:[], efectivo:[], actualizado:null}, leer("reales", {}));
+function valorReales(){
+  let tot = 0, costo = 0;
+  const filas = S.reales.posiciones.map(p=>{
+    const a = act(p.activo), d = S.datos[p.activo], precio = d && d.precio ? d.precio : null;
+    const valor = precio ? p.cantidad*precio : null, inv = p.cantidad*p.precio;
+    if(valor!=null){ tot += valor; costo += inv; }
+    return {p, a, precio, valor, inv, res: valor!=null ? (valor/inv-1)*100 : null, tend: d && d.serie ? tendencia(d.serie) : null, sen: a ? senal(a) : null};
+  });
+  const efe = S.reales.efectivo.reduce((s,e)=>s+(+e.monto||0),0);
+  return {filas, tot: tot+efe, efe, costo, gan: tot-costo};
+}
+function cardReales(){
+  const V = valorReales();
+  return `<div class="card">
+    <div class="sec-head"><b>Mis posiciones reales</b><span class="small muted">${S.reales.actualizado ? "Cargado " + S.reales.actualizado : ""}</span></div>
+    <div class="grid2">
+      <div class="kpi"><span class="kl">Total estimado</span><b>${ars(V.tot)}</b><span class="ks">Incluye efectivo ${ars(V.efe)}</span></div>
+      <div class="kpi"><span class="kl">Ganancia en posiciones</span><b class="${clsPct(V.gan)}">${ars(V.gan)}</b><span class="ks">${V.costo ? pct(V.gan/V.costo*100) : "—"}</span></div>
+    </div>
+    ${V.filas.map(f=>`<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div><b>${esc(f.a ? f.a.nombre : f.p.activo)}</b> <span class="small muted">· ${esc(f.p.broker)} · ${f.p.cantidad} a ${ars(f.p.precio)}</span>
+      <div class="small">${f.tend ? `<span class="${f.tend.cls}">${f.tend.txt}</span>` : ""}${f.sen ? ` · <span class="${f.sen.cls}">${f.sen.txt}</span>` : ""}</div></div>
+      <div style="text-align:right"><div class="mono">${ars(f.valor)}</div><div class="small ${clsPct(f.res)}">${pct(f.res)}</div></div></div>`).join("")}
+    ${S.reales.efectivo.map(e=>`<div style="display:flex;justify-content:space-between"><span class="small">${esc(e.donde)} <span class="muted">· ${esc(e.nota||"efectivo / saldo")}</span></span><span class="mono small">${ars(+e.monto)}</span></div>`).join("")}
+    <p class="small muted">Se actualiza con los precios de la app. Las operaciones reales las hacés vos en IOL y Binance.</p>
+  </div>`;
+}
+
 /* ============ Guardado en la nube ============ */
 const NUBE = {codigo: leer("codigo", ""), estado: "local", ultimo: null, t: null};
-function paquete(){ return {modelo:S.modelo, params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:(S.robots||[]).map(r=>{ const c = Object.assign({}, r); delete c.vivo; return c; })}; }
+function paquete(){ return {reales:S.reales, modelo:S.modelo, params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:(S.robots||[]).map(r=>{ const c = Object.assign({}, r); delete c.vivo; return c; })}; }
 async function llamarNube(metodo, cuerpo){
   const r = await fetch("/api/datos", {method:metodo, headers:{"content-type":"application/json", "x-ilab-codigo":NUBE.codigo}, body: cuerpo ? JSON.stringify(cuerpo) : undefined});
   const d = await r.json().catch(()=>({}));
@@ -1116,7 +1149,7 @@ async function bajar(){
     const d = await llamarNube("GET");
     const local = leer("editado", 0), remoto = d.actualizado ? Date.parse(d.actualizado) : 0;
     if(d.datos && remoto > local){
-      ["params","cartera","bots","fotos","chat","robots","modelo"].forEach(k=>{ if(d.datos[k]!==undefined){ S[k] = d.datos[k]; guardar(k, d.datos[k], true); } });
+      ["params","cartera","bots","fotos","chat","robots","modelo","reales"].forEach(k=>{ if(d.datos[k]!==undefined){ S[k] = d.datos[k]; guardar(k, d.datos[k], true); } });
       try{ localStorage.setItem(K+"editado", JSON.stringify(remoto)); }catch(e){}
       NUBE.estado = "ok"; NUBE.ultimo = d.actualizado; render();
       if(S.robots.length && typeof estadoRobots==="function") estadoRobots();
