@@ -727,12 +727,12 @@ function guardarAjustes(){
   guardar("params", S.params); toast("Ajustes guardados");
 }
 function exportar(){
-  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:S.robots}, null, 2)], {type:"application/json"});
+  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:S.robots, modelo:S.modelo}, null, 2)], {type:"application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `inversion-lab-${hoy()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
 }
 function importar(file){
   if(!file) return; const r = new FileReader();
-  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat","robots"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
+  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat","robots","modelo"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
   r.readAsText(file);
 }
 
@@ -740,7 +740,9 @@ function vCartera(){
   const el = $("#vista-cartera"), C = S.cartera, V = valorCartera();
   const res = V.totARS && V.capTot ? (V.totARS/V.capTot-1)*100 : (V.ars/C.capARS-1)*100;
   el.innerHTML = `
-  <div class="sec"><p class="eyebrow">Paper trading · desde ${C.inicio}</p><h1>Cartera simulada</h1></div>
+  <div class="sec"><p class="eyebrow">Paper trading · desde ${C.inicio}</p><h1>Cartera</h1></div>
+  ${cardModelo()}
+  <h2>Cartera simulada</h2>
   <div class="kpis">
     <div class="kpi"><span class="kl">Valor total</span><b>${ars(V.totARS ?? V.ars)}</b><span class="ks">${S.mep ? "USDT al MEP" : "Solo pesos"}</span></div>
     <div class="kpi"><span class="kl">Resultado</span><b class="${clsPct(res)}">${pct(res)}</b><span class="ks">vs capital inicial</span></div>
@@ -783,6 +785,7 @@ function contexto(){
   const V = valorCartera(), C = S.cartera;
   lin.push(`Cartera simulada desde ${C.inicio}: disponible $${Math.round(C.ars)} y ${C.usdt.toFixed(2)} USDT; ${C.lotes.length} posiciones${C.lotes.length ? ": " + C.lotes.map(l=>`${l.activo} compra ${l.precio}`).join(", ") : ""}.`);
   if(S.robots && S.robots.length) lin.push("Robots en papel: " + S.robots.map(r=>{ const s = senalRobot(r), v = r.vivo||{}; return `${r.nombre}: ${s.txt}${v.papel ? `, en papel ${pct(v.papel.ret,2)} vs mantener ${pct(v.hold,2)}` : ""}`; }).join("; "));
+  if(MOD.listo){ const M = MODELOS[S.modelo.id], r = simModelo(M.pesos, S.modelo.desde); lin.push(`Cartera modelo ${M.nombre} en papel desde ${S.modelo.desde}: ${r?pct(r.res,2):"sin datos aún"}.`); }
   const ub = ultimasFotos(); if(ub.length) lin.push("Bots reales: " + ub.map(f=>`Bot ${f.bot} ganancia $${f.ganancia} sobre $${f.capital} (${f.fecha})`).join("; "));
   return lin.join("\n").slice(0, 4900);
 }
@@ -1019,9 +1022,81 @@ function robotsInicio(){
 }
 
 
+
+/* ============ Cartera modelo (estudio 30/10/2026) ============
+   Cartera simple con rebalanceo mensual, medida en dólares (CEDEARs pasados a dólar MEP de AL30/AL30D). */
+const MODELOS = {
+  m6040:{nombre:"60% Nasdaq (QQQ) + 40% Bitcoin", pesos:{QQQ:0.6, BTC:0.4}, estudio:"30% anual · peor caída −20% (mar-2023 → oct-2026)"},
+  m8020:{nombre:"80% S&P 500 (SPY) + 20% Bitcoin", pesos:{SPY:0.8, BTC:0.2}, estudio:"23% anual · peor caída −11% (mar-2023 → oct-2026)"}
+};
+S.modelo = Object.assign({id:"m6040", desde:hoy(), capital:1427650}, leer("modelo", {}));
+const MOD = {usd:{}, ars:{}, mep:null, mepHoy:null, listo:false, error:null};
+async function histTicker(clase, t){ const h = await getJSON(`/api/mercado?tipo=hist&clase=${clase}&ticker=${t}`); return (Array.isArray(h)?h:(h.data||[])).map(filaHist).filter(x=>x.t&&x.c>0).sort((a,b)=>a.t<b.t?-1:1); }
+async function cargarModelo(){
+  try{
+    const [qqq, spy, al, ald] = await Promise.all([histTicker("cedears","QQQ"), histTicker("cedears","SPY"), histTicker("bonds","AL30"), histTicker("bonds","AL30D")]);
+    const d1 = Object.fromEntries(ald.map(x=>[x.t,x.c])), raw = {}; al.forEach(x=>{ if(d1[x.t]) raw[x.t] = x.c/d1[x.t]; });
+    const fs = Object.keys(raw).sort(), mep = {};
+    fs.forEach((d,i)=>{ const w = fs.slice(Math.max(0,i-3), i+4).map(x=>raw[x]).sort((a,b)=>a-b); mep[d] = w[Math.floor(w.length/2)]; });
+    MOD.mep = mep; MOD.mepHoy = mep[fs[fs.length-1]];
+    for(const [t, arr] of [["QQQ",qqq],["SPY",spy]]){
+      const s = arr.map(x=>({...x}));
+      for(let i=s.length-1;i>0;i--){ const f = s[i].c/s[i-1].c; if(f<0.62||f>1.6){ for(let j=0;j<i;j++) s[j].c *= f; } }   // cambios de ratio del CEDEAR
+      MOD.ars[t] = arr[arr.length-1].c;
+      MOD.usd[t] = {}; s.forEach(x=>{ if(mep[x.t]) MOD.usd[t][x.t] = x.c/mep[x.t]; });
+    }
+    const b = S.datos.BTC && S.datos.BTC.serie; MOD.usd.BTC = b ? Object.fromEntries(b.map(x=>[x.t,x.c])) : {};
+    MOD.listo = true; MOD.error = null;
+  }catch(e){ MOD.error = e.message; }
+  if(VISTA==="cartera") vCartera();
+}
+// Valor de la cartera rebalanceada a fin de cada mes, desde una fecha; compara con cada activo solo.
+function simModelo(pesos, desde){
+  const ks = Object.keys(pesos), F = Object.keys(MOD.usd[ks[0]]||{}).filter(d=>d>=desde && ks.every(k=>MOD.usd[k] && MOD.usd[k][d]!=null)).sort();
+  if(F.length < 2) return null;
+  let val = 1, uni = {}, pico = 1, dd = 0; ks.forEach(k=> uni[k] = pesos[k]/MOD.usd[k][F[0]]);
+  for(let i=1;i<F.length;i++){
+    val = ks.reduce((s,k)=> s + uni[k]*MOD.usd[k][F[i]], 0);
+    pico = Math.max(pico, val); dd = Math.max(dd, (1-val/pico)*100);
+    const finMes = i===F.length-1 || F[i+1].slice(0,7)!==F[i].slice(0,7);
+    if(finMes) ks.forEach(k=> uni[k] = val*pesos[k]/MOD.usd[k][F[i]]);
+  }
+  const solo = {}; ks.forEach(k=> solo[k] = (MOD.usd[k][F[F.length-1]]/MOD.usd[k][F[0]]-1)*100);
+  return {res:(val-1)*100, dd, solo, desde:F[0], hasta:F[F.length-1], dias:F.length};
+}
+function planModelo(){
+  const M = MODELOS[S.modelo.id], cap = +S.modelo.capital||0, out = [];
+  for(const [k,w] of Object.entries(M.pesos)){
+    const monto = cap*w;
+    if(k==="BTC"){ const btc = S.datos.BTC && S.datos.BTC.precio, usdt = MOD.mepHoy ? monto/MOD.mepHoy : null; out.push({k, donde:"Binance", monto, det: usdt && btc ? `≈ ${usd(usdt)} → ${(usdt/btc).toFixed(6)} BTC` : "—"}); }
+    else { const p = MOD.ars[k]; out.push({k, donde:"IOL (CEDEAR)", monto, det: p ? `${Math.floor(monto/p)} CEDEARs de ${k} a ${ars(p)}` : "—"}); }
+  }
+  return out;
+}
+function cardModelo(){
+  const M = MODELOS[S.modelo.id];
+  if(MOD.error) return `<div class="card"><b>Cartera modelo</b><p class="small t-rojo">No se pudieron traer los datos: ${esc(MOD.error)}</p></div>`;
+  if(!MOD.listo) return `<div class="card"><b>Cartera modelo</b><p class="small muted">Cargando CEDEARs y dólar MEP…</p></div>`;
+  const r = simModelo(M.pesos, S.modelo.desde), r12 = simModelo(M.pesos, new Date(Date.now()-365*864e5).toISOString().slice(0,10));
+  const plan = planModelo();
+  return `<div class="card">
+    <div class="sec-head"><b>Cartera modelo</b><select onchange="S.modelo.id=this.value;guardar('modelo',S.modelo);vCartera()">${Object.entries(MODELOS).map(([id,m])=>`<option value="${id}" ${id===S.modelo.id?"selected":""}>${esc(m.nombre)}</option>`).join("")}</select></div>
+    <p class="small muted">Estudio: ${esc(M.estudio)}. Se revisa una vez por mes y se vuelve a los porcentajes.</p>
+    <div class="grid2">
+      <div class="kpi"><span class="kl">En papel desde ${S.modelo.desde}</span><b class="${r?clsPct(r.res):""}">${r ? pct(r.res,2) : "—"}</b><span class="ks">${r ? Object.entries(r.solo).map(([k,v])=>`${k} ${pct(v,1)}`).join(" · ") : "Arranca con el próximo cierre"}</span></div>
+      <div class="kpi"><span class="kl">Últimos 12 meses (en U$s)</span><b class="${r12?clsPct(r12.res):""}">${r12 ? pct(r12.res,1) : "—"}</b><span class="ks">${r12 ? `Peor caída −${r12.dd.toFixed(0)}% · ` + Object.entries(r12.solo).map(([k,v])=>`${k} ${pct(v,0)}`).join(" · ") : ""}</span></div>
+    </div>
+    <b style="margin-top:4px">Plan para armarla con ${ars(+S.modelo.capital)}</b>
+    ${plan.map(p=>`<div style="display:flex;justify-content:space-between;gap:8px"><span>${Math.round(MODELOS[S.modelo.id].pesos[p.k]*100)}% ${p.k} <span class="small muted">· ${p.donde}</span></span><span class="small mono" style="text-align:right">${ars(p.monto)}<br>${esc(p.det)}</span></div>`).join("")}
+    <div class="row2"><label class="f">Capital a armar ($)<input type="number" inputmode="decimal" value="${+S.modelo.capital}" onchange="S.modelo.capital=+this.value||0;guardar('modelo',S.modelo);vCartera()"></label>
+    <label class="f">En papel desde<input type="date" value="${S.modelo.desde}" onchange="S.modelo.desde=this.value;guardar('modelo',S.modelo);vCartera()"></label></div>
+    <p class="small muted">Dólar MEP de referencia ${ars(MOD.mepHoy)}. Rebalanceo: el último día hábil de cada mes. Es un estudio de 2023–2026, no una garantía.</p>
+  </div>`;
+}
+
 /* ============ Guardado en la nube ============ */
 const NUBE = {codigo: leer("codigo", ""), estado: "local", ultimo: null, t: null};
-function paquete(){ return {params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:(S.robots||[]).map(r=>{ const c = Object.assign({}, r); delete c.vivo; return c; })}; }
+function paquete(){ return {modelo:S.modelo, params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:(S.robots||[]).map(r=>{ const c = Object.assign({}, r); delete c.vivo; return c; })}; }
 async function llamarNube(metodo, cuerpo){
   const r = await fetch("/api/datos", {method:metodo, headers:{"content-type":"application/json", "x-ilab-codigo":NUBE.codigo}, body: cuerpo ? JSON.stringify(cuerpo) : undefined});
   const d = await r.json().catch(()=>({}));
@@ -1041,7 +1116,7 @@ async function bajar(){
     const d = await llamarNube("GET");
     const local = leer("editado", 0), remoto = d.actualizado ? Date.parse(d.actualizado) : 0;
     if(d.datos && remoto > local){
-      ["params","cartera","bots","fotos","chat","robots"].forEach(k=>{ if(d.datos[k]!==undefined){ S[k] = d.datos[k]; guardar(k, d.datos[k], true); } });
+      ["params","cartera","bots","fotos","chat","robots","modelo"].forEach(k=>{ if(d.datos[k]!==undefined){ S[k] = d.datos[k]; guardar(k, d.datos[k], true); } });
       try{ localStorage.setItem(K+"editado", JSON.stringify(remoto)); }catch(e){}
       NUBE.estado = "ok"; NUBE.ultimo = d.actualizado; render();
       if(S.robots.length && typeof estadoRobots==="function") estadoRobots();
@@ -1071,7 +1146,7 @@ function cardNube(){
 
 /* ============ Inicio ============ */
 render();
-cargarTodo().then(()=>{ if(S.robots.length) estadoRobots(); });
+cargarTodo().then(()=>{ if(S.robots.length) estadoRobots(); cargarModelo(); });
 bajar();
 setInterval(()=>{ if(!document.hidden) cargarTodo(); }, 5*60*1000);
 if("serviceWorker" in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); }
