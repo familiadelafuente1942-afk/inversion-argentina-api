@@ -18,11 +18,13 @@ Laboratorio personal de paper trading de Sebastián: acciones argentinas, CEDEAR
 ## Archivos
 - `index.html`: la app completa.
 - `api/mercado.js`: datos de mercado (data912 para Argentina; Binance como respaldo de velas).
+- `api/datos.js`: guardado en la nube (Supabase, solo desde el servidor).
 - `api/claude.js`: chat con Claude. Acepta pedidos desde el mismo dominio y desde la app anterior.
 - `manifest.webmanifest`, `icon-*.png`: instalación en el celular.
 
 ## Vercel
-Variable necesaria para el chat: `ANTHROPIC_API_KEY` (Production, Preview y Development).
+- Chat: `ANTHROPIC_API_KEY`.
+- Guardado en la nube: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` e `ILAB_CODIGO` (el código que se escribe en Laboratorio → Ajustes en cada dispositivo). Crear antes la tabla con `supabase.sql`.
 
 ## Importante
 Herramienta educativa: no ejecuta operaciones reales ni guarda claves de Binance. Los precios argentinos pueden tener demora. Los datos de la app se guardan en el navegador; usar Exportar respaldo para pasarlos a otro dispositivo.

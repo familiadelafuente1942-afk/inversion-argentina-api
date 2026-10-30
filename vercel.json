@@ -6,6 +6,9 @@
     },
     "api/mercado.js": {
       "maxDuration": 15
+    },
+    "api/datos.js": {
+      "maxDuration": 10
     }
   }
 }

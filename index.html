@@ -184,7 +184,10 @@ const BOTS_DEF = [
 /* ============ Guardado local (con respaldo exportable) ============ */
 const K = "ilab_v2_";
 function leer(k, def){ try{ const v = localStorage.getItem(K+k); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
-function guardar(k, v){ try{ localStorage.setItem(K+k, JSON.stringify(v)); }catch(e){} }
+function guardar(k, v, sinNube){
+  try{ localStorage.setItem(K+k, JSON.stringify(v)); if(!sinNube) localStorage.setItem(K+"editado", JSON.stringify(Date.now())); }catch(e){}
+  if(!sinNube && typeof programarSubida==="function") programarSubida();
+}
 
 const S = {
   params: Object.assign({}, PARAMS_DEF, leer("params", {})),
@@ -274,7 +277,7 @@ async function cargarTodo(){
   S.cargado = true;
   const ok = ACTIVOS.filter(a=>S.datos[a.id] && !S.datos[a.id].error).length;
   $("#estado").textContent = `${ok}/${ACTIVOS.length} activos · ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`;
-  if(S.cartera.btcRef==null && S.datos.BTC && S.datos.BTC.precio){ S.cartera.btcRef = S.datos.BTC.precio; guardar("cartera", S.cartera); }
+  if(S.cartera.btcRef==null && S.datos.BTC && S.datos.BTC.precio){ S.cartera.btcRef = S.datos.BTC.precio; guardar("cartera", S.cartera, true); }
   render();
 }
 
@@ -703,6 +706,7 @@ function labAjustes(){
     </div>
     <div class="row2"><button class="btn gold" onclick="guardarAjustes()">Guardar</button><button class="btn ghost" onclick="S.params=Object.assign({},PARAMS_DEF);guardar('params',S.params);labAjustes();toast('Valores del estudio restaurados')">Valores del estudio</button></div>
   </div>
+  ${cardNube()}
   <div class="card">
     <b>Respaldo</b>
     <p class="small muted">Todo se guarda en este dispositivo. Exportá un respaldo para pasarlo a otro celular o PC.</p>
@@ -1005,9 +1009,61 @@ function robotsInicio(){
     <div class="arow glass"><div><div class="n" style="font-size:14px">${esc(r.nombre)}</div><div class="s">${v.papel ? `En papel <span class="${clsPct(v.papel.ret)}">${pct(v.papel.ret,2)}</span> · Mantener ${pct(v.hold,2)}` : "Recién adoptado"}</div></div><span class="status ${s.cls}">${s.txt}</span></div>`; }).join("")}</div></section>`;
 }
 
+
+/* ============ Guardado en la nube ============ */
+const NUBE = {codigo: leer("codigo", ""), estado: "local", ultimo: null, t: null};
+function paquete(){ return {params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat, robots:(S.robots||[]).map(r=>{ const c = Object.assign({}, r); delete c.vivo; return c; })}; }
+async function llamarNube(metodo, cuerpo){
+  const r = await fetch("/api/datos", {method:metodo, headers:{"content-type":"application/json", "x-ilab-codigo":NUBE.codigo}, body: cuerpo ? JSON.stringify(cuerpo) : undefined});
+  const d = await r.json().catch(()=>({}));
+  if(!r.ok){ const e = new Error(d.error || ("HTTP "+r.status)); e.status = r.status; throw e; }
+  return d;
+}
+function programarSubida(){ if(!NUBE.codigo) return; clearTimeout(NUBE.t); NUBE.t = setTimeout(subir, 2500); }
+async function subir(){
+  if(!NUBE.codigo) return;
+  try{ const d = await llamarNube("PUT", {datos:paquete()}); NUBE.estado = "ok"; NUBE.ultimo = d.actualizado; }
+  catch(e){ NUBE.estado = e.status===503 ? "sin configurar" : e.status===401 ? "código incorrecto" : "error"; }
+  pintarNube();
+}
+async function bajar(){
+  if(!NUBE.codigo) return;
+  try{
+    const d = await llamarNube("GET");
+    const local = leer("editado", 0), remoto = d.actualizado ? Date.parse(d.actualizado) : 0;
+    if(d.datos && remoto > local){
+      ["params","cartera","bots","fotos","chat","robots"].forEach(k=>{ if(d.datos[k]!==undefined){ S[k] = d.datos[k]; guardar(k, d.datos[k], true); } });
+      try{ localStorage.setItem(K+"editado", JSON.stringify(remoto)); }catch(e){}
+      NUBE.estado = "ok"; NUBE.ultimo = d.actualizado; render();
+      if(S.robots.length && typeof estadoRobots==="function") estadoRobots();
+    } else { await subir(); return; }
+  }catch(e){ NUBE.estado = e.status===503 ? "sin configurar" : e.status===401 ? "código incorrecto" : "error"; }
+  pintarNube();
+}
+function textoNube(){
+  if(!NUBE.codigo) return {t:"Solo en este dispositivo", c:"muted"};
+  return ({ok:{t:"Sincronizado"+(NUBE.ultimo?" · "+new Date(NUBE.ultimo).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}):""), c:"t-verde"},
+    "sin configurar":{t:"Falta configurar la nube en Vercel", c:"t-naranja"}, "código incorrecto":{t:"Código incorrecto", c:"t-rojo"},
+    error:{t:"Sin conexión con la nube", c:"t-rojo"}, local:{t:"Conectando…", c:"muted"}})[NUBE.estado];
+}
+function pintarNube(){ const el = $("#nube-estado"); if(el){ const x = textoNube(); el.className = "small "+x.c; el.textContent = x.t; } }
+function conectarNube(){
+  const v = ($("#nube-cod").value || "").trim(); if(!v) return toast("Escribí el código");
+  NUBE.codigo = v; guardar("codigo", v, true); NUBE.estado = "local"; pintarNube(); bajar();
+}
+function cardNube(){
+  const x = textoNube();
+  return `<div class="card"><b>Guardado en la nube</b>
+    <p class="small muted">Con el mismo código en el celular y en la PC, ves la misma cartera, robots y diario en los dos.</p>
+    <p id="nube-estado" class="small ${x.c}">${x.t}</p>
+    <div class="row2"><input id="nube-cod" type="password" autocomplete="off" placeholder="Código de sincronización" value="${esc(NUBE.codigo)}"><button class="btn gold" onclick="conectarNube()">Conectar</button></div>
+  </div>`;
+}
+
 /* ============ Inicio ============ */
 render();
 cargarTodo().then(()=>{ if(S.robots.length) estadoRobots(); });
+bajar();
 setInterval(()=>{ if(!document.hidden) cargarTodo(); }, 5*60*1000);
 if("serviceWorker" in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); }
 </script>
