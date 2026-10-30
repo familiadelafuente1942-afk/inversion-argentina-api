@@ -252,7 +252,16 @@ async function cargarAccion(a){
   catch(e){ if(!a.alt) throw e; clase = a.alt; hist = await getJSON(`/api/mercado?tipo=hist&clase=${clase}&ticker=${a.id}`); }
   const arr = Array.isArray(hist) ? hist : (hist.data || hist.values || []);
   let serie = arr.map(filaHist).filter(x=>x.t && x.c>0).sort((x,y)=>x.t<y.t?-1:1).slice(-400);
+  if(serie.length < 30 && a.alt && clase !== a.alt){
+    clase = a.alt; const h2 = await getJSON(`/api/mercado?tipo=hist&clase=${clase}&ticker=${a.id}`);
+    serie = (Array.isArray(h2) ? h2 : (h2.data || h2.values || [])).map(filaHist).filter(x=>x.t && x.c>0).sort((x,y)=>x.t<y.t?-1:1).slice(-400);
+  }
   if(serie.length < 30) throw new Error("Historial insuficiente");
+  // Splits sin ajustar (ej.: YPF 10:1 en agosto 2026): un salto de más de 3 veces en un día se trata como split
+  for(let i=serie.length-1;i>0;i--){
+    const f = serie[i].c/serie[i-1].c;
+    if(f < 0.3 || f > 3.3){ for(let j=0;j<i;j++){ ["o","h","l","c"].forEach(k=>{ if(serie[j][k]) serie[j][k] *= f; }); } }
+  }
   let precio = serie[serie.length-1].c, ant = serie[serie.length-2].c, fuente = "data912 (cierre)";
   const live = await panel(clase==="cedears" ? "arg_cedears" : "arg_stocks");
   const f = Array.isArray(live) ? live.find(x=>String(x.symbol).toUpperCase()===a.id) : null;
