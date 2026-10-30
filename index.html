@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0e10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inversión Lab">
+<meta name="description" content="Laboratorio personal de paper trading: acciones argentinas, CEDEARs y cripto.">
+<title>Inversión Lab</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+/* Mismo entorno visual que NEXO 2: oscuro + dorado, vidrio, Barlow / Barlow Condensed / Michroma */
+:root{
+  --bg:#0d0e10;--surface:#16171a;--raise:#1d1f23;--line:#2a2c31;--fg:#ece8e1;--muted:#8f8b84;
+  --gold:#b8915a;--gold-soft:rgba(184,145,90,.14);
+  --verde:#3fa66b;--amarillo:#e0b43a;--naranja:#e5813a;--rojo:#e2493e;--azul:#5b8fd6;
+  --gl:rgba(255,255,255,.07);--gl-hi:rgba(255,255,255,.30);--gl-line:rgba(255,255,255,.08);--gl-sh:rgba(0,0,0,.5);--gl-bar:rgba(18,19,23,.66);
+  --g-a:rgba(255,255,255,.17);--g-b:rgba(255,255,255,.035);--g-c:rgba(255,255,255,.075);--g-edge:rgba(255,255,255,.26);--g-rim:rgba(255,255,255,.55);
+  --amb1:rgba(184,145,90,.16);--amb2:rgba(70,110,190,.12);
+  --display:"Barlow Condensed","Arial Narrow",sans-serif;--body:"Barlow",system-ui,sans-serif;--mono:"IBM Plex Mono",ui-monospace,monospace;--tech:"Michroma","Barlow Condensed",sans-serif;
+  color-scheme:dark;
+}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}
+html,body{height:100%}
+*{box-sizing:border-box}
+body{margin:0;color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.45;overflow-x:hidden;touch-action:manipulation;
+  background:radial-gradient(120% 46% at 92% -4%,var(--amb1),transparent 62%),radial-gradient(90% 40% at 0% 38%,var(--amb2),transparent 70%),var(--bg);background-attachment:fixed}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{font:inherit;font-size:16px;color:var(--fg);background:var(--raise);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-width:0;max-width:100%}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{max-width:640px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+header.top{position:sticky;top:0;z-index:5;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;flex-direction:column;gap:4px;
+  background:var(--gl-bar);-webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);border-bottom:1px solid var(--gl-line)}
+.brand{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.brand b{font-family:var(--tech);letter-spacing:.16em;font-size:12px;text-transform:uppercase;color:var(--gold);font-weight:400}
+.brand span{font-size:12px;color:var(--muted)}
+main{flex:1;padding:16px 16px 110px;display:flex;flex-direction:column;gap:20px;min-width:0}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0;letter-spacing:.01em;text-wrap:balance}
+h1{font-size:30px;line-height:1.05}h2{font-size:20px}h3{font-size:17px}
+p{margin:0}
+main[hidden]{display:none}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.sec{display:flex;flex-direction:column;gap:10px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.note{font-size:12px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.list{display:flex;flex-direction:column;gap:8px}
+.glass,.card,.kpi{background:linear-gradient(158deg,var(--g-a),var(--g-b) 50%,var(--g-c));-webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6);
+  box-shadow:inset 0 1.5px 1px var(--g-rim),inset 0 0 0 1px var(--g-edge);border:0}
+.card{border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.kpi{border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi b{font-family:var(--display);font-size:clamp(17px,5.4vw,23px);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .kl{font-size:12px;color:#c9c4bb;line-height:1.25}
+.kpi .ks{font-size:11.5px;color:var(--muted)}
+.btn{border:1px solid var(--line);background:var(--raise);border-radius:10px;padding:10px 14px;font-weight:600;text-align:center;display:inline-block}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#16120b}
+.btn.ghost{background:none}.btn.sm{padding:6px 12px;font-size:13px}.btn.full{width:100%}
+.btn.red{background:rgba(226,73,62,.14);border-color:var(--rojo);color:#ffb3ad}
+.row2{display:flex;gap:8px;flex-wrap:wrap}.row2>*{flex:1 1 140px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--raise);border:1px solid var(--line);white-space:nowrap}
+.status{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.t-verde{color:var(--verde)}.t-rojo{color:var(--rojo)}.t-amarillo{color:var(--amarillo)}.t-naranja{color:var(--naranja)}.t-azul{color:var(--azul)}.t-gold{color:var(--gold)}
+.tabs{display:flex;border-bottom:1px solid var(--line);gap:2px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;background:none;padding:10px 11px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--fg);border-color:var(--gold);font-weight:600}
+.arow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:11px 14px;border-radius:12px;text-align:left;width:100%}
+.arow .n{font-weight:600}.arow .s{font-size:12px;color:var(--muted)}
+.arow .p{font-family:var(--mono);text-align:right;font-size:14px}
+.arow .v{text-align:right;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500;font-size:12px}
+.tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+label.f input,label.f select,label.f textarea{width:100%}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.big{font-family:var(--display);font-size:34px;line-height:1;font-weight:600}
+.sem{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.chk input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--gold)}
+.msgs{display:flex;flex-direction:column;gap:10px;min-height:240px}
+.msg{padding:10px 13px;border-radius:14px;max-width:88%;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px}
+.msg.yo{align-self:flex-end;background:var(--gold);color:#16120b;border-bottom-right-radius:4px}
+.msg.ia{align-self:flex-start;border-bottom-left-radius:4px}
+.chatbar{display:flex;gap:8px;position:sticky;bottom:96px}
+.chatbar input{flex:1}
+nav.bottom{position:fixed;bottom:0;left:0;right:0;z-index:10;display:flex;justify-content:center;padding:0 12px calc(12px + env(safe-area-inset-bottom,0px));pointer-events:none}
+nav.bottom .in{pointer-events:auto;max-width:640px;width:100%;display:flex;padding:6px;gap:2px;border-radius:999px;
+  background:linear-gradient(158deg,var(--g-a),var(--g-b));-webkit-backdrop-filter:blur(24px) saturate(1.8);backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:inset 0 1.5px 1px var(--g-rim),inset 0 0 0 1px var(--g-edge),0 14px 30px -10px var(--gl-sh)}
+nav.bottom button{flex:1;border:0;background:none;padding:7px 2px 6px;border-radius:999px;font-size:10.5px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.bottom button svg{width:22px;height:22px}
+nav.bottom button[aria-current=page]{background:var(--gl);color:var(--fg);box-shadow:inset 0 1px 0 var(--gl-hi),inset 0 0 0 .5px var(--gl-line)}
+.ov{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+.ov[hidden]{display:none}
+.sheet{width:100%;max-width:640px;max-height:90vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;
+  background:linear-gradient(158deg,rgba(40,41,46,.96),rgba(22,23,26,.98));box-shadow:inset 0 2px 1px var(--g-rim),inset 0 0 0 1px var(--g-edge);animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.x{border:0;background:var(--raise);border-radius:999px;width:34px;height:34px;font-size:18px}
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:30;background:var(--raise);border:1px solid var(--gold);border-radius:999px;padding:8px 16px;font-size:13px}
+.toast[hidden]{display:none}
+canvas{max-width:100%}
+.disc{font-size:11px;color:var(--muted);line-height:1.45;text-align:center}
+@media (prefers-color-scheme:light){
+  :root{--bg:#eceef3;--surface:#fff;--raise:#f3f4f8;--line:#d8dbe3;--fg:#0c0d10;--muted:#5a5d66;
+    --gl:rgba(255,255,255,.66);--gl-hi:rgba(255,255,255,.95);--gl-line:rgba(0,0,0,.08);--gl-sh:rgba(40,40,70,.18);--gl-bar:rgba(244,245,250,.72);
+    --g-a:rgba(255,255,255,.80);--g-b:rgba(255,255,255,.22);--g-c:rgba(255,255,255,.40);--g-edge:rgba(255,255,255,.95);--g-rim:#fff;
+    --amb1:rgba(184,145,90,.22);--amb2:rgba(110,150,225,.2);color-scheme:light}
+  .kpi .kl{color:#33363d}
+  .sheet{background:linear-gradient(158deg,rgba(255,255,255,.97),rgba(243,244,248,.98))}
+  .msg.yo{color:#16120b}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><b>NEXO · Inversión Lab</b><span id="estado">Cargando mercado…</span></div>
+  </header>
+
+  <main id="vista-inicio"></main>
+  <main id="vista-mercado" hidden></main>
+  <main id="vista-lab" hidden></main>
+  <main id="vista-cartera" hidden></main>
+  <main id="vista-socio" hidden></main>
+</div>
+
+<nav class="bottom" aria-label="Secciones">
+  <div class="in">
+    <button data-v="inicio" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Inicio</button>
+    <button data-v="mercado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/></svg>Mercado</button>
+    <button data-v="lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/></svg>Laboratorio</button>
+    <button data-v="cartera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M16 13h2M3 10h18M7 6V4h10v2"/></svg>Cartera</button>
+    <button data-v="socio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/></svg>Socio IA</button>
+  </div>
+</nav>
+
+<div class="ov" id="ov" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+"use strict";
+/* ============ Configuración ============ */
+const ACTIVOS = [
+  {id:"BTC", nombre:"Bitcoin", sector:"Cripto", tipo:"cripto", sym:"BTCUSDT", mon:"USDT"},
+  {id:"ETH", nombre:"Ethereum", sector:"Cripto", tipo:"cripto", sym:"ETHUSDT", mon:"USDT"},
+  {id:"SOL", nombre:"Solana", sector:"Cripto", tipo:"cripto", sym:"SOLUSDT", mon:"USDT"},
+  {id:"YPFD", nombre:"YPF", sector:"Energía", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"VIST", nombre:"Vista", sector:"Energía", tipo:"accion", clase:"stocks", alt:"cedears", mon:"ARS"},
+  {id:"PAMP", nombre:"Pampa Energía", sector:"Energía", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"TGSU2", nombre:"TGS", sector:"Energía", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"CEPU", nombre:"Central Puerto", sector:"Eléctricas", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"TRAN", nombre:"Transener", sector:"Eléctricas", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"EDN", nombre:"Edenor", sector:"Eléctricas", tipo:"accion", clase:"stocks", mon:"ARS"},
+  {id:"MELI", nombre:"Mercado Libre", sector:"Tecnología", tipo:"accion", clase:"cedears", mon:"ARS"},
+  {id:"GLOB", nombre:"Globant", sector:"Tecnología", tipo:"accion", clase:"cedears", mon:"ARS"}
+];
+const PARAMS_DEF = {entrada:3, salida:5, media:20, tramos:3, comAcc:0.6, comCri:0.1};
+const BOTS_DEF = [
+  {id:"A", par:"BTC/USDT", rango:"±5%", escalones:10, capital:300000},
+  {id:"B", par:"BTC/USDT", rango:"±12%", escalones:20, capital:300000},
+  {id:"C", par:"ETH/USDT", rango:"±10%", escalones:15, capital:300000}
+];
+
+/* ============ Guardado local (con respaldo exportable) ============ */
+const K = "ilab_v2_";
+function leer(k, def){ try{ const v = localStorage.getItem(K+k); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+function guardar(k, v){ try{ localStorage.setItem(K+k, JSON.stringify(v)); }catch(e){} }
+
+const S = {
+  params: Object.assign({}, PARAMS_DEF, leer("params", {})),
+  cartera: leer("cartera", null),
+  bots: leer("bots", BOTS_DEF),
+  fotos: leer("fotos", []),
+  chat: leer("chat", []),
+  datos: {},     // id -> {serie:[{t,c,h,l}], precio, var, fuente, error}
+  mep: null,
+  cargado: false
+};
+if(!S.cartera){ S.cartera = {inicio:new Date().toISOString().slice(0,10), capARS:1500000, capUSDT:0, ars:1500000, usdt:0, lotes:[], diario:[], btcRef:null}; }
+
+/* ============ Utilidades ============ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const media = a => a.reduce((x,y)=>x+y,0)/a.length;
+function ars(x){ return x==null||isNaN(x) ? "—" : "$ " + Math.round(x).toLocaleString("es-AR"); }
+function usd(x, d=2){ return x==null||isNaN(x) ? "—" : "U$s " + Number(x).toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function px(a, x){ if(x==null||isNaN(x)) return "—"; return a.mon==="USDT" ? usd(x, x<10?4:2) : "$ " + Number(x).toLocaleString("es-AR",{maximumFractionDigits:x<100?2:0}); }
+function pct(x, d=1){ return x==null||isNaN(x) ? "—" : (x>0?"+":"") + x.toFixed(d).replace(".",",") + "%"; }
+function clsPct(x){ return x>0 ? "t-verde" : x<0 ? "t-rojo" : "muted"; }
+function hoy(){ return new Date().toISOString().slice(0,10); }
+function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>el.hidden=true, 2600); }
+function act(id){ return ACTIVOS.find(a=>a.id===id); }
+
+/* ============ Datos de mercado ============ */
+async function getJSON(url, ms=12000){
+  const c = new AbortController(); const t = setTimeout(()=>c.abort(), ms);
+  try{ const r = await fetch(url, {signal:c.signal}); const d = await r.json(); if(!r.ok) throw new Error(d && d.error || ("HTTP "+r.status)); return d; }
+  finally{ clearTimeout(t); }
+}
+// Velas de Binance: primero directo desde el navegador; si no llega, por el servidor propio.
+async function klines(sym, interval, limit, startTime){
+  let q = `symbol=${sym}&interval=${interval}&limit=${limit}` + (startTime?`&startTime=${startTime}`:"");
+  try{ return await getJSON(`https://api.binance.com/api/v3/klines?${q}`); }
+  catch(e){
+    try{ return await getJSON(`https://data-api.binance.vision/api/v3/klines?${q}`); }
+    catch(e2){ return await getJSON(`/api/mercado?tipo=klines&${q}`); }
+  }
+}
+function velasASerie(k){ return k.map(v=>({t:new Date(v[0]).toISOString().slice(0,10), ts:v[0], o:+v[1], h:+v[2], l:+v[3], c:+v[4]})); }
+
+async function cargarCripto(a){
+  const k = await klines(a.sym, "1d", 400);
+  const serie = velasASerie(k);
+  const precio = serie[serie.length-1].c, ant = serie[serie.length-2].c;
+  S.datos[a.id] = {serie, precio, var:(precio/ant-1)*100, fuente:"Binance"};
+}
+function filaHist(x){
+  const t = String(x.date||x.d||x.fecha||"").slice(0,10);
+  return {t, o:+(x.o??x.open), h:+(x.h??x.high), l:+(x.l??x.low), c:+(x.c??x.close)};
+}
+let PANELES = {};
+async function panel(nombre){
+  if(!PANELES[nombre]) PANELES[nombre] = getJSON(`/api/mercado?tipo=live&panel=${nombre}`).catch(()=>[]);
+  return PANELES[nombre];
+}
+async function cargarAccion(a){
+  let hist, clase = a.clase;
+  try{ hist = await getJSON(`/api/mercado?tipo=hist&clase=${clase}&ticker=${a.id}`); }
+  catch(e){ if(!a.alt) throw e; clase = a.alt; hist = await getJSON(`/api/mercado?tipo=hist&clase=${clase}&ticker=${a.id}`); }
+  const arr = Array.isArray(hist) ? hist : (hist.data || hist.values || []);
+  let serie = arr.map(filaHist).filter(x=>x.t && x.c>0).sort((x,y)=>x.t<y.t?-1:1).slice(-400);
+  if(serie.length < 30) throw new Error("Historial insuficiente");
+  let precio = serie[serie.length-1].c, ant = serie[serie.length-2].c, fuente = "data912 (cierre)";
+  const live = await panel(clase==="cedears" ? "arg_cedears" : "arg_stocks");
+  const f = Array.isArray(live) ? live.find(x=>String(x.symbol).toUpperCase()===a.id) : null;
+  if(f && +f.c > 0){
+    precio = +f.c; fuente = "data912 (en vivo, con demora)";
+    const ult = serie[serie.length-1];
+    if(ult.t !== hoy()) serie.push({t:hoy(), o:precio, h:precio, l:precio, c:precio}); else { ult.c = precio; ant = serie[serie.length-2].c; }
+  }
+  S.datos[a.id] = {serie, precio, var:(precio/ant-1)*100, fuente};
+}
+async function cargarMEP(){
+  try{
+    const d = await getJSON(`/api/mercado?tipo=live&panel=mep`);
+    const vals = (Array.isArray(d) ? d : [d]).map(x=>+(x.mark ?? x.close ?? x.c ?? x.venta ?? 0)).filter(v=>v>100 && v<100000).sort((x,y)=>x-y);
+    S.mep = vals.length ? vals[Math.floor(vals.length/2)] : null;
+  }catch(e){ S.mep = null; }
+}
+async function cargarTodo(){
+  $("#estado").textContent = "Actualizando…";
+  PANELES = {};
+  await Promise.all([cargarMEP(), ...ACTIVOS.map(a => (a.tipo==="cripto" ? cargarCripto(a) : cargarAccion(a)).catch(e => { S.datos[a.id] = {error: e.message || "Sin datos"}; }))]);
+  S.cargado = true;
+  const ok = ACTIVOS.filter(a=>S.datos[a.id] && !S.datos[a.id].error).length;
+  $("#estado").textContent = `${ok}/${ACTIVOS.length} activos · ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}`;
+  if(S.cartera.btcRef==null && S.datos.BTC && S.datos.BTC.precio){ S.cartera.btcRef = S.datos.BTC.precio; guardar("cartera", S.cartera); }
+  render();
+}
+
+/* ============ Análisis ============ */
+function tendencia(serie){
+  const c = serie.map(x=>x.c); if(c.length < 55) return {txt:"Sin datos", cls:"muted", k:"na"};
+  const s20 = media(c.slice(-20)), s50 = media(c.slice(-50)), r20 = (c[c.length-1]/c[c.length-21]-1)*100;
+  if(s20 > s50*1.01 && r20 > 3) return {txt:"Sube", cls:"t-verde", k:"sube", r20};
+  if(s20 < s50*0.99 && r20 < -3) return {txt:"Baja", cls:"t-rojo", k:"baja", r20};
+  return {txt:"Lateral", cls:"t-amarillo", k:"lateral", r20};
+}
+// Señal de la regla "comprar en baja por tramos, vender en alta" (la que probamos con datos reales).
+function senal(a){
+  const d = S.datos[a.id]; if(!d || d.error || !d.serie) return null;
+  const P = S.params, c = d.serie.map(x=>x.c);
+  if(c.length < P.media + 2) return null;
+  const sma = media(c.slice(-P.media-1, -1)), p = d.precio, tr = tendencia(d.serie);
+  const niveles = []; for(let k=1;k<=P.tramos;k++) niveles.push(sma*(1-P.entrada/100*k));
+  const lotes = S.cartera.lotes.filter(l=>l.activo===a.id);
+  const vender = lotes.filter(l=> p >= l.precio*(1+P.salida/100));
+  let k = 0; niveles.forEach((n,i)=>{ if(p <= n) k = i+1; });
+  let txt, cls, det;
+  if(vender.length){ txt="Vender"; cls="t-verde"; det=`${vender.length} compra(s) simulada(s) ya ganan +${P.salida}% o más`; }
+  else if(k>0 && tr.k==="baja"){ txt="Cautela"; cls="t-naranja"; det=`Está en zona de compra (tramo ${k}), pero la tendencia es bajista: la regla perdió en este escenario`; }
+  else if(k>0){ txt=`Compra tramo ${k}`; cls="t-azul"; det=`${pct((p/sma-1)*100)} bajo su media de ${P.media} días`; }
+  else { txt="Esperar"; cls="muted"; det=`Tramo 1 en ${px(a, niveles[0])} (${pct((niveles[0]/p-1)*100)})`; }
+  return {txt, cls, det, sma, niveles, tr, vender};
+}
+// Simulación diaria de la regla (misma lógica que el estudio del 30/10/2026).
+function backtest(serie, desde, P, comision, capital=1000000){
+  const i0 = serie.findIndex(x=>x.t>=desde); if(i0 < P.media) return null;
+  let cash = capital, lotes = [], ops = [], tr = capital/P.tramos, com = comision/100;
+  for(let i=i0;i<serie.length;i++){
+    const p = serie[i].c, sma = media(serie.slice(i-P.media, i).map(x=>x.c));
+    for(const l of lotes.slice()){
+      if(p >= l.precio*(1+P.salida/100)){ const v=l.q*p*(1-com); cash+=v; lotes.splice(lotes.indexOf(l),1); ops.push({t:serie[i].t, tipo:"Vende", p, res:(p/l.precio-1)*100}); }
+    }
+    const tiene = new Set(lotes.map(l=>l.k));
+    for(let k=1;k<=P.tramos;k++){
+      if(!tiene.has(k) && p <= sma*(1-P.entrada/100*k) && cash >= tr*0.99){
+        const m = Math.min(tr, cash), q = m/(p*(1+com)); cash -= m; lotes.push({q, precio:p, k}); ops.push({t:serie[i].t, tipo:`Compra ${k}`, p});
+      }
+    }
+  }
+  const pf = serie[serie.length-1].c, fin = cash + lotes.reduce((s,l)=>s+l.q*pf*(1-com),0);
+  const hold = (pf*(1-com))/(serie[i0].c*(1+com)) - 1;
+  return {res:(fin/capital-1)*100, hold:hold*100, ops, abiertas:lotes.length, dias:serie.length-i0};
+}
+// Simulación de Bot de Grid (aritmético, spot) sobre velas por hora.
+function simGrid(velas, piso, techo, n, capital, feePct){
+  const fee = feePct/100, paso = (techo-piso)/n, slots = [];
+  const p0 = velas[0].c;
+  for(let i=0;i<n;i++){
+    const lo = piso + paso*i, hi = lo + paso, m = capital/n;
+    if(lo >= p0) slots.push({lo, hi, q:m/(p0*(1+fee)), cash:0});        // compra inicial: espera vender en hi
+    else slots.push({lo, hi, q:0, cash:m});                                // espera comprar en lo
+  }
+  let ciclos = 0, ganancia = 0, salioPor = null;
+  for(const v of velas){
+    for(const s of slots){
+      if(s.q===0 && v.l <= s.lo && s.lo < techo){ s.q = s.cash/(s.lo*(1+fee)); s.base = s.lo; s.cash = 0; }
+      else if(s.q>0 && v.h >= s.hi){ const ing = s.q*s.hi*(1-fee); if(s.base!=null){ ganancia += ing - (capital/n); ciclos++; } s.cash = ing; s.q = 0; s.base = null; }
+    }
+    if(v.c < piso*0.99 && !salioPor) salioPor = "debajo del piso";
+    if(v.c > techo*1.01 && !salioPor) salioPor = "encima del techo";
+  }
+  const pf = velas[velas.length-1].c;
+  const fin = slots.reduce((t,s)=>t + s.cash + s.q*pf*(1-fee), 0);
+  const hold = capital/(p0*(1+fee))*pf*(1-fee);
+  const dias = (velas[velas.length-1].ts - velas[0].ts)/864e5 || 1;
+  return {fin, res:(fin/capital-1)*100, hold:(hold/capital-1)*100, ciclos, ganancia, porDia:(fin-capital)/dias, dias, pasoPct:paso/((piso+techo)/2)*100, salioPor};
+}
+
+/* ============ Cartera simulada ============ */
+function valorCartera(){
+  const C = S.cartera; let ars_ = C.ars, usdt = C.usdt;
+  for(const l of C.lotes){ const d = S.datos[l.activo]; const p = d && d.precio ? d.precio : l.precio; if(act(l.activo).mon==="USDT") usdt += l.q*p; else ars_ += l.q*p; }
+  return {ars:ars_, usdt, totARS: S.mep ? ars_ + usdt*S.mep : null, capTot: S.mep ? C.capARS + C.capUSDT*S.mep : null};
+}
+function comprar(id, monto, motivo){
+  const a = act(id), d = S.datos[id], C = S.cartera; if(!d || !d.precio) return toast("Sin precio para "+a.nombre);
+  const com = (a.tipo==="cripto" ? S.params.comCri : S.params.comAcc)/100;
+  const caja = a.mon==="USDT" ? "usdt" : "ars";
+  if(!(monto>0) || monto > C[caja]+1e-9) return toast("Saldo simulado insuficiente");
+  const q = monto/(d.precio*(1+com));
+  C[caja] -= monto;
+  C.lotes.push({id:Date.now(), activo:id, q, precio:d.precio, fecha:hoy(), monto});
+  C.diario.push({fecha:new Date().toLocaleString("es-AR"), activo:id, accion:"Compra", precio:d.precio, monto, motivo:motivo||"Sin nota"});
+  guardar("cartera", C); toast(`Compra simulada: ${a.nombre}`); render();
+}
+function vender(loteId, motivo){
+  const C = S.cartera, l = C.lotes.find(x=>x.id===loteId); if(!l) return;
+  const a = act(l.activo), d = S.datos[l.activo]; if(!d || !d.precio) return toast("Sin precio para vender");
+  const com = (a.tipo==="cripto" ? S.params.comCri : S.params.comAcc)/100;
+  const ing = l.q*d.precio*(1-com), caja = a.mon==="USDT" ? "usdt" : "ars";
+  C[caja] += ing; C.lotes = C.lotes.filter(x=>x.id!==loteId);
+  C.diario.push({fecha:new Date().toLocaleString("es-AR"), activo:l.activo, accion:"Venta", precio:d.precio, monto:ing, motivo:motivo||"Sin nota", res:(ing/l.monto-1)*100});
+  guardar("cartera", C); toast(`Venta simulada: ${a.nombre} ${pct((ing/l.monto-1)*100)}`); render();
+}
+
+/* ============ Vistas ============ */
+let VISTA = "inicio";
+document.querySelectorAll("nav.bottom button").forEach(b=>b.onclick=()=>irA(b.dataset.v));
+function irA(v){
+  VISTA = v;
+  document.querySelectorAll("nav.bottom button").forEach(b=>b.setAttribute("aria-current", b.dataset.v===v ? "page" : "false"));
+  ["inicio","mercado","lab","cartera","socio"].forEach(x=>$("#vista-"+x).hidden = x!==v);
+  render(); window.scrollTo(0,0);
+}
+function render(){ ({inicio:vInicio, mercado:vMercado, lab:vLab, cartera:vCartera, socio:vSocio})[VISTA](); }
+
+function cargando(){ return `<div class="card"><p class="muted">Trayendo precios de Binance y del mercado argentino…</p></div>`; }
+
+function vInicio(){
+  const el = $("#vista-inicio");
+  const V = valorCartera(), C = S.cartera;
+  const resCart = V.totARS && V.capTot ? (V.totARS/V.capTot-1)*100 : (V.ars/C.capARS-1)*100;
+  const btc = S.datos.BTC, refBTC = btc && btc.precio && C.btcRef ? (btc.precio/C.btcRef-1)*100 : null;
+  const ub = ultimasFotos(), capBots = S.bots.reduce((s,b)=>s+(+b.capital||0),0);
+  const ganBots = ub.reduce((s,f)=>s+(+f.ganancia||0),0);
+  const senales = ACTIVOS.map(a=>({a, s:senal(a)})).filter(x=>x.s && x.s.txt!=="Esperar");
+  const sectores = {};
+  ACTIVOS.forEach(a=>{ const d=S.datos[a.id]; if(!d||!d.serie) return; const t=tendencia(d.serie); (sectores[a.sector]=sectores[a.sector]||[]).push(t.k); });
+  el.innerHTML = `
+  <div class="sec">
+    <p class="eyebrow">${new Date().toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</p>
+    <h1>Laboratorio de inversión</h1>
+    <p class="muted small">Probamos con dinero simulado y montos chicos. Lo que no le gane a mantener BTC, no sirve.</p>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span class="kl">Cartera simulada</span><b class="${clsPct(resCart)}">${pct(resCart)}</b><span class="ks">${ars(V.totARS ?? V.ars)}</span></div>
+    <div class="kpi"><span class="kl">BTC desde el inicio</span><b class="${clsPct(refBTC)}">${pct(refBTC)}</b><span class="ks">Vara de comparación</span></div>
+    <div class="kpi"><span class="kl">Bots reales</span><b class="${clsPct(ganBots)}">${capBots ? pct(ganBots/capBots*100) : "—"}</b><span class="ks">${ub.length ? ars(ganBots) : "Sin cargar"}</span></div>
+  </div>
+  ${ganBots < -0.15*capBots && capBots ? `<div class="card" style="box-shadow:inset 0 0 0 1px var(--rojo)"><b class="t-rojo">Regla de corte: los bots pierden más de 15%</b><p class="small">Pausá los bots y revisemos juntos antes de seguir.</p></div>` : ""}
+  <section class="sec">
+    <div class="sec-head"><h2>Señales de hoy</h2><span class="small muted">Regla −${S.params.entrada}% / +${S.params.salida}%</span></div>
+    ${!S.cargado ? cargando() : senales.length ? `<div class="list">${senales.map(({a,s})=>`
+      <button class="arow glass" onclick="detalle('${a.id}')">
+        <div><div class="n">${esc(a.nombre)} <span class="status ${s.cls}" style="margin-left:6px">${s.txt}</span></div><div class="s">${esc(s.det)}</div></div>
+        <div class="p">${px(a, S.datos[a.id].precio)}</div>
+      </button>`).join("")}</div>` : `<div class="card"><p>Ningún activo está en zona de compra o venta. <span class="muted">Esperar también es una decisión.</span></p></div>`}
+  </section>
+  <section class="sec">
+    <h2>Tendencia por sector</h2>
+    <div class="card">${Object.keys(sectores).length ? Object.entries(sectores).map(([sec, ks])=>{
+      const n = k=>ks.filter(x=>x===k).length;
+      return `<div style="display:flex;justify-content:space-between;gap:8px;padding:4px 0"><span>${sec}</span><span class="small"><span class="t-verde">${n("sube")} suben</span> · <span class="t-amarillo">${n("lateral")} laterales</span> · <span class="t-rojo">${n("baja")} bajan</span></span></div>`;
+    }).join("") : `<p class="muted small">Esperando datos…</p>`}
+    <p class="note">Laterales: ahí funciona la regla de baja/alza y el Grid. Suben: conviene mantener. Bajan: no comprar caídas.</p></div>
+  </section>
+  <div class="row2">
+    <button class="btn gold" onclick="irA('lab')">Simular un Bot de Grid</button>
+    <button class="btn" onclick="cargarTodo()">Actualizar precios</button>
+  </div>
+  <p class="disc">Herramienta educativa. No ejecuta operaciones reales ni garantiza resultados. Los precios argentinos pueden tener demora.</p>`;
+}
+
+let FILTRO = "Todos";
+function vMercado(){
+  const el = $("#vista-mercado");
+  const secs = ["Todos", ...new Set(ACTIVOS.map(a=>a.sector))];
+  const lista = ACTIVOS.filter(a=>FILTRO==="Todos" || a.sector===FILTRO);
+  el.innerHTML = `
+  <div class="sec"><p class="eyebrow">Mercado</p><h1>Activos que seguimos</h1>
+  ${S.mep ? `<p class="small muted">Dólar MEP de referencia: <span class="mono">${ars(S.mep)}</span></p>` : ""}</div>
+  <div class="tabs" role="tablist">${secs.map(s=>`<button role="tab" aria-selected="${s===FILTRO}" onclick="FILTRO='${s}';vMercado()">${s}</button>`).join("")}</div>
+  ${!S.cargado ? cargando() : `<div class="list">${lista.map(a=>{
+    const d = S.datos[a.id];
+    if(!d || d.error) return `<div class="arow glass"><div><div class="n">${esc(a.nombre)}</div><div class="s t-rojo">${esc(d ? d.error : "Sin datos")}</div></div><div></div></div>`;
+    const t = tendencia(d.serie), s = senal(a);
+    return `<button class="arow glass" onclick="detalle('${a.id}')">
+      <div><div class="n">${esc(a.nombre)} <span class="small muted">${a.id}</span></div>
+      <div class="s"><span class="${t.cls}">${t.txt}</span> · ${s ? `<span class="${s.cls}">${s.txt}</span>` : ""}</div></div>
+      <div><div class="p">${px(a, d.precio)}</div><div class="v ${clsPct(d.var)}">${pct(d.var)}</div></div>
+    </button>`;
+  }).join("")}</div>`}`;
+}
+
+let graf = null;
+function abrir(html){ $("#sheet").innerHTML = html; $("#ov").hidden = false; }
+function cerrar(){ $("#ov").hidden = true; if(graf){ graf.destroy(); graf = null; } }
+$("#ov").addEventListener("click", e=>{ if(e.target.id==="ov") cerrar(); });
+
+function detalle(id){
+  const a = act(id), d = S.datos[id]; if(!d || d.error) return;
+  const s = senal(a), t = tendencia(d.serie), P = S.params;
+  const desde = d.serie[Math.max(P.media, d.serie.length-60)].t;
+  const bt = backtest(d.serie, desde, P, a.tipo==="cripto" ? P.comCri : P.comAcc);
+  abrir(`
+    <div class="sheet-head"><div><p class="eyebrow">${a.sector} · ${a.id}</p><h2>${esc(a.nombre)}</h2></div><button class="x" onclick="cerrar()" aria-label="Cerrar">×</button></div>
+    <div style="display:flex;align-items:baseline;gap:10px"><span class="big">${px(a, d.precio)}</span><span class="${clsPct(d.var)}">${pct(d.var)} hoy</span></div>
+    <div class="grid3">
+      <div class="kpi"><span class="kl">Tendencia</span><b class="${t.cls}" style="font-size:20px">${t.txt}</b><span class="ks">20 días ${pct(t.r20)}</span></div>
+      <div class="kpi"><span class="kl">Señal</span><b class="${s.cls}" style="font-size:20px">${s.txt}</b><span class="ks">Media ${px(a, s.sma)}</span></div>
+      <div class="kpi"><span class="kl">Regla, 60 ruedas</span><b class="${clsPct(bt&&bt.res)}" style="font-size:20px">${bt ? pct(bt.res) : "—"}</b><span class="ks">Mantener ${bt ? pct(bt.hold) : "—"}</span></div>
+    </div>
+    <p class="small muted">${esc(s.det)}</p>
+    <canvas id="cv" height="210"></canvas>
+    <div class="card"><b>Niveles de compra por tramos</b>
+      ${s.niveles.map((n,i)=>`<div style="display:flex;justify-content:space-between"><span>Tramo ${i+1} (−${P.entrada*(i+1)}%)</span><span class="mono">${px(a,n)}</span></div>`).join("")}
+      <p class="small muted">Cada tramo se vende a +${P.salida}% de su precio de compra.</p></div>
+    <div class="row2">
+      <button class="btn gold" onclick="formCompra('${id}')">Compra simulada</button>
+      <button class="btn" onclick="irA('lab');setTimeout(()=>{$('#bt-act').value='${id}'},50)">Probar la regla</button>
+    </div>
+    <p class="small muted">Fuente: ${esc(d.fuente)}</p>`);
+  const ser = d.serie.slice(-120), c = d.serie.map(x=>x.c), off = d.serie.length - ser.length;
+  const sma = ser.map((_,i)=>{ const j=off+i; return j>=P.media ? media(c.slice(j-P.media, j)) : null; });
+  if(window.Chart){
+    graf = new Chart($("#cv"), {type:"line", data:{labels:ser.map(x=>x.t.slice(5)), datasets:[
+      {label:"Precio", data:ser.map(x=>x.c), borderColor:"#b8915a", borderWidth:2, pointRadius:0, tension:.15},
+      {label:`Media ${P.media}`, data:sma, borderColor:"#5b8fd6", borderWidth:1.3, pointRadius:0, borderDash:[5,4]},
+      {label:"Tramo 1", data:sma.map(v=>v?v*(1-P.entrada/100):null), borderColor:"#3fa66b", borderWidth:1, pointRadius:0, borderDash:[2,3]}
+    ]}, options:{responsive:true, animation:false, interaction:{mode:"index", intersect:false},
+      plugins:{legend:{labels:{color:"#8f8b84", boxWidth:10, font:{family:"Barlow"}}}},
+      scales:{x:{ticks:{color:"#8f8b84", maxTicksLimit:6}, grid:{color:"rgba(255,255,255,.05)"}}, y:{ticks:{color:"#8f8b84", maxTicksLimit:6}, grid:{color:"rgba(255,255,255,.05)"}}}}});
+  }
+}
+
+function formCompra(id){
+  const a = act(id), C = S.cartera, caja = a.mon==="USDT" ? C.usdt : C.ars;
+  abrir(`
+    <div class="sheet-head"><h2>Compra simulada · ${esc(a.nombre)}</h2><button class="x" onclick="cerrar()" aria-label="Cerrar">×</button></div>
+    <p class="small muted">Precio actual ${px(a, S.datos[id].precio)} · Disponible ${a.mon==="USDT" ? usd(caja) : ars(caja)} · Comisión ${a.tipo==="cripto"?S.params.comCri:S.params.comAcc}%</p>
+    <label class="f">Monto (${a.mon==="USDT" ? "USDT" : "pesos"})<input id="fc-m" type="number" inputmode="decimal" min="0" step="any" value="${Math.floor(caja/S.params.tramos)}"></label>
+    <label class="f">Motivo<input id="fc-r" placeholder="Ej.: tramo 1 de la regla, tendencia lateral"></label>
+    <button class="btn gold full" onclick="comprar('${id}', +$('#fc-m').value, $('#fc-r').value); cerrar()">Confirmar compra simulada</button>`);
+}
+
+let LAB = "grid";
+function vLab(){
+  const el = $("#vista-lab");
+  el.innerHTML = `
+  <div class="sec"><p class="eyebrow">Laboratorio</p><h1>Probar antes de arriesgar</h1></div>
+  <div class="tabs" role="tablist">
+    ${[["grid","Bot de Grid"],["regla","Regla baja/alza"],["bots","Mis bots"],["meme","Checklist memecoin"],["ajustes","Ajustes"]].map(([k,t])=>`<button role="tab" aria-selected="${LAB===k}" onclick="LAB='${k}';vLab()">${t}</button>`).join("")}
+  </div>
+  <div id="lab-c"></div>`;
+  ({grid:labGrid, regla:labRegla, bots:labBots, meme:labMeme, ajustes:labAjustes})[LAB]();
+}
+
+function labGrid(){
+  const btc = S.datos.BTC && S.datos.BTC.precio;
+  $("#lab-c").innerHTML = `
+  <div class="card">
+    <p class="small muted">Simula un Bot de Grid de Binance spot con las velas reales por hora. Así ves qué configuración habría ganado antes de armarla.</p>
+    <div class="grid2">
+      <label class="f">Par<select id="g-par"><option>BTCUSDT</option><option>ETHUSDT</option><option>SOLUSDT</option></select></label>
+      <label class="f">Período<select id="g-dias"><option value="14">14 días</option><option value="30" selected>30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label>
+      <label class="f">Rango ±%<input id="g-rango" type="number" inputmode="decimal" value="10" step="0.5"></label>
+      <label class="f">Escalones<input id="g-n" type="number" inputmode="numeric" value="15"></label>
+      <label class="f">Capital (USDT)<input id="g-cap" type="number" inputmode="decimal" value="300"></label>
+      <label class="f">Comisión por lado %<input id="g-fee" type="number" inputmode="decimal" value="${S.params.comCri}" step="0.01"></label>
+    </div>
+    <p class="small muted">El rango se centra en el precio del primer día del período${btc ? ` (BTC hoy: ${usd(btc,0)})` : ""}.</p>
+    <div class="row2"><button class="btn gold" onclick="correrGrid(false)">Simular</button><button class="btn" onclick="correrGrid(true)">Probar 9 configuraciones</button></div>
+  </div>
+  <div id="g-res"></div>`;
+}
+async function velasHora(sym, dias){
+  const fin = Date.now(), ini = fin - dias*864e5; let out = [], t = ini;
+  while(t < fin){ const k = await klines(sym, "1h", 1000, t); if(!k.length) break; out = out.concat(velasASerie(k)); t = k[k.length-1][0] + 36e5; if(k.length < 1000) break; }
+  return out;
+}
+async function correrGrid(varias){
+  const sym = $("#g-par").value, dias = +$("#g-dias").value, cap = +$("#g-cap").value || 300, fee = +$("#g-fee").value || 0.1;
+  const box = $("#g-res"); box.innerHTML = `<div class="card"><p class="muted">Bajando ${dias} días de velas por hora de ${sym}…</p></div>`;
+  let v;
+  try{ v = await velasHora(sym, dias); }catch(e){ box.innerHTML = `<div class="card"><p class="t-rojo">No se pudieron bajar las velas: ${esc(e.message)}</p></div>`; return; }
+  if(v.length < 24){ box.innerHTML = `<div class="card"><p class="t-rojo">Pocas velas para simular.</p></div>`; return; }
+  const p0 = v[0].c;
+  const correr = (r, n) => Object.assign(simGrid(v, p0*(1-r/100), p0*(1+r/100), n, cap, fee), {r, n});
+  let res;
+  if(varias){ res = []; for(const r of [5,10,15]) for(const n of [10,20,30]) res.push(correr(r,n)); res.sort((x,y)=>y.res-x.res); }
+  else res = [correr(+$("#g-rango").value || 10, Math.max(2, Math.min(200, +$("#g-n").value || 15)))];
+  const mejor = res[0];
+  box.innerHTML = `
+  <div class="card">
+    <div class="sec-head"><b>${varias ? "Mejor configuración" : "Resultado"}</b><span class="small muted">${v[0].t} → ${v[v.length-1].t}</span></div>
+    <div class="grid3">
+      <div class="kpi"><span class="kl">Bot</span><b class="${clsPct(mejor.res)}">${pct(mejor.res,2)}</b><span class="ks">${usd(mejor.fin-cap)}</span></div>
+      <div class="kpi"><span class="kl">Por día</span><b class="${clsPct(mejor.porDia)}">${mejor.porDia>0?"+":""}${mejor.porDia.toFixed(2).replace(".",",")}</b><span class="ks">U$s · ${mejor.ciclos} ciclos</span></div>
+      <div class="kpi"><span class="kl">Mantener</span><b class="${clsPct(mejor.hold)}">${pct(mejor.hold,2)}</b><span class="ks">Comprar y esperar</span></div>
+    </div>
+    <p class="small">Rango ±${mejor.r}% · ${mejor.n} escalones de ${pct(mejor.pasoPct,2).replace("+","")} · ${mejor.pasoPct < 2*fee+0.3 ? `<span class="t-rojo">escalón muy chico: la comisión se come la ganancia</span>` : `<span class="muted">escalón cubre la comisión</span>`}</p>
+    ${mejor.salioPor ? `<p class="small t-naranja">El precio salió del rango (${mejor.salioPor}). En Binance conviene poner un stop en el piso.</p>` : ""}
+  </div>
+  ${varias ? `<div class="card tbl"><table><thead><tr><th>Rango</th><th>Escalones</th><th>Bot</th><th>Por día</th><th>Ciclos</th></tr></thead><tbody>
+    ${res.map(x=>`<tr><td>±${x.r}%</td><td>${x.n}</td><td class="${clsPct(x.res)}">${pct(x.res,2)}</td><td>${usd(x.porDia)}</td><td>${x.ciclos}</td></tr>`).join("")}</tbody></table>
+    <p class="small muted" style="margin-top:8px">Ojo: la mejor del pasado no garantiza el futuro. Elegí una que ande bien en varios períodos, no solo en uno.</p></div>` : ""}`;
+}
+
+function labRegla(){
+  const P = S.params;
+  $("#lab-c").innerHTML = `
+  <div class="card">
+    <p class="small muted">Compra por tramos cuando el precio cae bajo su media y vende cada tramo con ganancia. Es la regla que probamos con YPF, energéticas, tecnológicas y bitcoin.</p>
+    <div class="grid2">
+      <label class="f">Activo<select id="bt-act">${ACTIVOS.map(a=>`<option value="${a.id}">${esc(a.nombre)}</option>`).join("")}</select></label>
+      <label class="f">Desde<input id="bt-desde" type="date" value="${new Date(Date.now()-90*864e5).toISOString().slice(0,10)}"></label>
+      <label class="f">Entrada −%<input id="bt-e" type="number" inputmode="decimal" value="${P.entrada}" step="0.5"></label>
+      <label class="f">Salida +%<input id="bt-s" type="number" inputmode="decimal" value="${P.salida}" step="0.5"></label>
+      <label class="f">Media (días)<input id="bt-m" type="number" inputmode="numeric" value="${P.media}"></label>
+      <label class="f">Tramos<input id="bt-t" type="number" inputmode="numeric" value="${P.tramos}" min="1" max="5"></label>
+    </div>
+    <div class="row2"><button class="btn gold" onclick="correrRegla(false)">Probar este activo</button><button class="btn" onclick="correrRegla(true)">Probar todos</button></div>
+  </div>
+  <div id="bt-res"></div>`;
+}
+function correrRegla(todos){
+  const P = {entrada:+$("#bt-e").value||3, salida:+$("#bt-s").value||5, media:Math.max(5,+$("#bt-m").value||20), tramos:Math.max(1,Math.min(5,+$("#bt-t").value||3))};
+  const desde = $("#bt-desde").value, box = $("#bt-res");
+  const lista = todos ? ACTIVOS : [act($("#bt-act").value)];
+  const filas = lista.map(a=>{ const d = S.datos[a.id]; if(!d || !d.serie) return {a, r:null}; return {a, r:backtest(d.serie, desde, P, a.tipo==="cripto" ? S.params.comCri : S.params.comAcc)}; });
+  if(!todos){
+    const {a, r} = filas[0];
+    if(!r){ box.innerHTML = `<div class="card"><p class="t-rojo">No hay datos suficientes para ${esc(a.nombre)} desde esa fecha.</p></div>`; return; }
+    box.innerHTML = `<div class="card">
+      <div class="grid3">
+        <div class="kpi"><span class="kl">Regla</span><b class="${clsPct(r.res)}">${pct(r.res)}</b><span class="ks">${r.ops.length} operaciones</span></div>
+        <div class="kpi"><span class="kl">Mantener</span><b class="${clsPct(r.hold)}">${pct(r.hold)}</b><span class="ks">${r.dias} ruedas</span></div>
+        <div class="kpi"><span class="kl">Abiertas</span><b>${r.abiertas}</b><span class="ks">tramos sin vender</span></div>
+      </div>
+      ${r.ops.length ? `<div class="tbl"><table><thead><tr><th>Fecha</th><th>Operación</th><th>Precio</th><th>Resultado</th></tr></thead><tbody>
+        ${r.ops.map(o=>`<tr><td>${o.t}</td><td>${o.tipo}</td><td class="mono">${px(a,o.p)}</td><td class="${clsPct(o.res)}">${o.res!=null?pct(o.res):""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted small">La regla no disparó en el período.</p>`}
+    </div>`;
+    return;
+  }
+  const ok = filas.filter(f=>f.r);
+  const prom = ok.length ? media(ok.map(f=>f.r.res)) : null;
+  box.innerHTML = `<div class="card tbl">
+    <div class="sec-head"><b>Todos los activos</b><span class="small">Promedio <span class="${clsPct(prom)}">${pct(prom)}</span></span></div>
+    <table><thead><tr><th>Activo</th><th>Regla</th><th>Mantener</th><th>Ops</th></tr></thead><tbody>
+    ${filas.sort((x,y)=>(y.r?y.r.res:-999)-(x.r?x.r.res:-999)).map(({a,r})=>`<tr><td>${esc(a.nombre)}</td>${r ? `<td class="${clsPct(r.res)}">${pct(r.res)}</td><td class="${clsPct(r.hold)}">${pct(r.hold)}</td><td>${r.ops.length}</td>` : `<td colspan="3" class="muted">Sin datos</td>`}</tr>`).join("")}
+    </tbody></table>
+    <p class="small muted" style="margin-top:8px">Comisión ${S.params.comAcc}% acciones / ${S.params.comCri}% cripto por operación. Precios de cierre diarios.</p></div>`;
+}
+
+function ultimasFotos(){ return S.bots.map(b=>{ const f = S.fotos.filter(x=>x.bot===b.id).sort((x,y)=>x.fecha<y.fecha?1:-1)[0]; return f ? Object.assign({}, f, {capital:b.capital}) : null; }).filter(Boolean); }
+function labBots(){
+  const ub = ultimasFotos(), cap = S.bots.reduce((s,b)=>s+(+b.capital||0),0), gan = ub.reduce((s,f)=>s+(+f.ganancia||0),0);
+  $("#lab-c").innerHTML = `
+  <div class="card">
+    <p class="small muted">Los 3 bots reales que compiten en Binance. Cada viernes cargá la ganancia que muestra cada uno.</p>
+    <div class="grid2">
+      <div class="kpi"><span class="kl">Capital en prueba</span><b>${ars(cap)}</b><span class="ks">Corte: −15% = ${ars(-cap*0.15)}</span></div>
+      <div class="kpi"><span class="kl">Resultado total</span><b class="${clsPct(gan)}">${ars(gan)}</b><span class="ks">${cap ? pct(gan/cap*100) : "—"}</span></div>
+    </div>
+  </div>
+  <div class="list">${S.bots.map(b=>{ const f = ub.find(x=>x.bot===b.id); return `
+    <div class="card">
+      <div class="sec-head"><b>Bot ${esc(b.id)} · ${esc(b.par)}</b><span class="small muted">${esc(b.rango)} · ${esc(b.escalones)} esc.</span></div>
+      <div style="display:flex;justify-content:space-between"><span class="small muted">Capital ${ars(b.capital)}</span><span class="${f?clsPct(+f.ganancia):"muted"}">${f ? `${ars(+f.ganancia)} (${pct(f.ganancia/b.capital*100)}) · ${f.fecha}` : "Sin datos"}</span></div>
+    </div>`; }).join("")}</div>
+  <div class="card">
+    <b>Cargar dato semanal</b>
+    <div class="grid2">
+      <label class="f">Bot<select id="bf-bot">${S.bots.map(b=>`<option>${esc(b.id)}</option>`).join("")}</select></label>
+      <label class="f">Fecha<input id="bf-f" type="date" value="${hoy()}"></label>
+      <label class="f">Ganancia total del bot ($)<input id="bf-g" type="number" inputmode="decimal" placeholder="Ej.: 4200 o -1500"></label>
+      <label class="f">Nota<input id="bf-n" placeholder="Opcional"></label>
+    </div>
+    <button class="btn gold full" onclick="cargarFoto()">Guardar</button>
+  </div>
+  ${S.fotos.length ? `<div class="card tbl"><b>Historial</b><table><thead><tr><th>Fecha</th><th>Bot</th><th>Ganancia</th><th>Nota</th></tr></thead><tbody>
+    ${S.fotos.slice().sort((x,y)=>x.fecha<y.fecha?1:-1).map(f=>`<tr><td>${f.fecha}</td><td>${esc(f.bot)}</td><td class="${clsPct(+f.ganancia)}">${ars(+f.ganancia)}</td><td style="text-align:left">${esc(f.nota)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+  <button class="btn ghost" onclick="editarBots()">Editar configuración de los bots</button>`;
+}
+function cargarFoto(){
+  const g = $("#bf-g").value; if(g==="" || isNaN(+g)) return toast("Cargá la ganancia del bot");
+  S.fotos.push({bot:$("#bf-bot").value, fecha:$("#bf-f").value || hoy(), ganancia:+g, nota:$("#bf-n").value});
+  guardar("fotos", S.fotos); toast("Dato guardado"); labBots();
+}
+function editarBots(){
+  abrir(`<div class="sheet-head"><h2>Bots en prueba</h2><button class="x" onclick="cerrar()" aria-label="Cerrar">×</button></div>
+  ${S.bots.map((b,i)=>`<div class="card"><b>Bot ${esc(b.id)}</b><div class="grid2">
+    <label class="f">Par<input id="eb-p${i}" value="${esc(b.par)}"></label><label class="f">Rango<input id="eb-r${i}" value="${esc(b.rango)}"></label>
+    <label class="f">Escalones<input id="eb-e${i}" type="number" value="${esc(b.escalones)}"></label><label class="f">Capital ($)<input id="eb-c${i}" type="number" value="${esc(b.capital)}"></label>
+  </div></div>`).join("")}
+  <button class="btn gold full" onclick="guardarBots()">Guardar</button>`);
+}
+function guardarBots(){
+  S.bots = S.bots.map((b,i)=>({id:b.id, par:$("#eb-p"+i).value, rango:$("#eb-r"+i).value, escalones:+$("#eb-e"+i).value||0, capital:+$("#eb-c"+i).value||0}));
+  guardar("bots", S.bots); cerrar(); toast("Bots actualizados"); vLab();
+}
+
+const MEME = [
+  ["Ninguna billetera tiene más del 10% del total", true],
+  ["El creador no puede emitir más tokens (mint revocado)", true],
+  ["El creador no puede congelar tus tokens (freeze revocado)", true],
+  ["La liquidez está bloqueada o quemada", true],
+  ["Lo encontré antes de que esté en videos o posteos virales", false],
+  ["El monto es del presupuesto de casino y lo puedo perder entero", true],
+  ["Ya definí dónde vendo la mitad (al duplicar)", false]
+];
+function labMeme(){
+  $("#lab-c").innerHTML = `<div class="card">
+    <p class="small muted">Antes de comprar cualquier memecoin. Verificá los datos en RugCheck o DexScreener con la dirección del contrato, nunca solo con el nombre.</p>
+    ${MEME.map(([t,crit],i)=>`<label class="chk"><input type="checkbox" id="mm${i}" onchange="evalMeme()"><span>${t}${crit ? ` <span class="small t-gold">obligatorio</span>` : ""}</span></label>`).join("")}
+    <div id="mm-r" class="card" style="margin-top:6px"></div>
+  </div>`;
+  evalMeme();
+}
+function evalMeme(){
+  const ok = MEME.map((_,i)=>$("#mm"+i).checked), fallaCrit = MEME.some(([,c],i)=>c && !ok[i]), n = ok.filter(Boolean).length;
+  $("#mm-r").innerHTML = fallaCrit
+    ? `<b class="t-rojo">No comprar</b><p class="small">Falta al menos un punto obligatorio. En el caso Kimchi, una sola billetera tenía el 75%.</p>`
+    : n === MEME.length ? `<b class="t-verde">Pasa el filtro</b><p class="small">Igual es una apuesta: máximo U$s 20 a 50 por token.</p>`
+    : `<b class="t-amarillo">Riesgo alto</b><p class="small">Pasa lo obligatorio, pero llegás tarde o sin plan de salida.</p>`;
+}
+
+function labAjustes(){
+  const P = S.params;
+  $("#lab-c").innerHTML = `<div class="card">
+    <b>Regla de señales</b>
+    <div class="grid2">
+      <label class="f">Entrada −% por tramo<input id="aj-e" type="number" inputmode="decimal" step="0.5" value="${P.entrada}"></label>
+      <label class="f">Salida +%<input id="aj-s" type="number" inputmode="decimal" step="0.5" value="${P.salida}"></label>
+      <label class="f">Media (días)<input id="aj-m" type="number" inputmode="numeric" value="${P.media}"></label>
+      <label class="f">Tramos<input id="aj-t" type="number" inputmode="numeric" min="1" max="5" value="${P.tramos}"></label>
+      <label class="f">Comisión acciones %<input id="aj-ca" type="number" inputmode="decimal" step="0.05" value="${P.comAcc}"></label>
+      <label class="f">Comisión cripto %<input id="aj-cc" type="number" inputmode="decimal" step="0.01" value="${P.comCri}"></label>
+    </div>
+    <div class="row2"><button class="btn gold" onclick="guardarAjustes()">Guardar</button><button class="btn ghost" onclick="S.params=Object.assign({},PARAMS_DEF);guardar('params',S.params);labAjustes();toast('Valores del estudio restaurados')">Valores del estudio</button></div>
+  </div>
+  <div class="card">
+    <b>Respaldo</b>
+    <p class="small muted">Todo se guarda en este dispositivo. Exportá un respaldo para pasarlo a otro celular o PC.</p>
+    <div class="row2"><button class="btn" onclick="exportar()">Exportar respaldo</button><label class="btn" style="cursor:pointer">Importar<input type="file" accept="application/json" hidden onchange="importar(this.files[0])"></label></div>
+  </div>`;
+}
+function guardarAjustes(){
+  S.params = {entrada:+$("#aj-e").value||3, salida:+$("#aj-s").value||5, media:Math.max(5,+$("#aj-m").value||20), tramos:Math.max(1,Math.min(5,+$("#aj-t").value||3)), comAcc:+$("#aj-ca").value||0, comCri:+$("#aj-cc").value||0};
+  guardar("params", S.params); toast("Ajustes guardados");
+}
+function exportar(){
+  const blob = new Blob([JSON.stringify({version:2, fecha:new Date().toISOString(), params:S.params, cartera:S.cartera, bots:S.bots, fotos:S.fotos, chat:S.chat}, null, 2)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `inversion-lab-${hoy()}.json`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+function importar(file){
+  if(!file) return; const r = new FileReader();
+  r.onload = () => { try{ const d = JSON.parse(r.result); ["params","cartera","bots","fotos","chat"].forEach(k=>{ if(d[k]){ S[k]=d[k]; guardar(k, d[k]); } }); toast("Respaldo importado"); render(); }catch(e){ toast("Archivo no válido"); } };
+  r.readAsText(file);
+}
+
+function vCartera(){
+  const el = $("#vista-cartera"), C = S.cartera, V = valorCartera();
+  const res = V.totARS && V.capTot ? (V.totARS/V.capTot-1)*100 : (V.ars/C.capARS-1)*100;
+  el.innerHTML = `
+  <div class="sec"><p class="eyebrow">Paper trading · desde ${C.inicio}</p><h1>Cartera simulada</h1></div>
+  <div class="kpis">
+    <div class="kpi"><span class="kl">Valor total</span><b>${ars(V.totARS ?? V.ars)}</b><span class="ks">${S.mep ? "USDT al MEP" : "Solo pesos"}</span></div>
+    <div class="kpi"><span class="kl">Resultado</span><b class="${clsPct(res)}">${pct(res)}</b><span class="ks">vs capital inicial</span></div>
+    <div class="kpi"><span class="kl">Disponible</span><b style="font-size:19px">${ars(C.ars)}</b><span class="ks">${usd(C.usdt)}</span></div>
+  </div>
+  <section class="sec"><div class="sec-head"><h2>Posiciones</h2><button class="btn sm" onclick="elegirCompra()">+ Comprar</button></div>
+  ${C.lotes.length ? `<div class="list">${C.lotes.map(l=>{ const a = act(l.activo), d = S.datos[l.activo], p = d && d.precio ? d.precio : l.precio, r = (p/l.precio-1)*100; return `
+    <div class="card"><div class="sec-head"><b>${esc(a.nombre)}</b><span class="${clsPct(r)}">${pct(r)}</span></div>
+    <div class="small muted">Compra ${px(a,l.precio)} el ${l.fecha} · Hoy ${px(a,p)} · Invertido ${a.mon==="USDT"?usd(l.monto):ars(l.monto)}</div>
+    <div class="row2"><button class="btn sm" onclick="vender(${l.id}, prompt('Motivo de la venta:')||'')">Vender</button></div></div>`; }).join("")}</div>`
+    : `<div class="card"><p class="muted">Sin posiciones. Cuando una señal diga "Compra", probala acá con dinero simulado.</p></div>`}
+  </section>
+  <section class="sec"><h2>Diario de decisiones</h2>
+  ${C.diario.length ? `<div class="card tbl"><table><thead><tr><th>Fecha</th><th>Activo</th><th>Acción</th><th>Precio</th><th>Res.</th><th>Motivo</th></tr></thead><tbody>
+    ${C.diario.slice().reverse().slice(0,40).map(j=>{ const a = act(j.activo); return `<tr><td>${esc(j.fecha)}</td><td>${esc(a?a.nombre:j.activo)}</td><td>${esc(j.accion)}</td><td class="mono">${a?px(a,j.precio):j.precio}</td><td class="${clsPct(j.res)}">${j.res!=null?pct(j.res):""}</td><td style="text-align:left">${esc(j.motivo)}</td></tr>`; }).join("")}</tbody></table></div>`
+    : `<p class="muted small">Cada compra y venta simulada queda anotada con su motivo.</p>`}
+  </section>
+  <button class="btn ghost" onclick="reiniciarCartera()">Reiniciar cartera simulada</button>`;
+}
+function elegirCompra(){
+  abrir(`<div class="sheet-head"><h2>¿Qué querés comprar?</h2><button class="x" onclick="cerrar()" aria-label="Cerrar">×</button></div>
+  <div class="list">${ACTIVOS.filter(a=>S.datos[a.id] && S.datos[a.id].precio).map(a=>{ const s = senal(a); return `<button class="arow glass" onclick="formCompra('${a.id}')"><div><div class="n">${esc(a.nombre)}</div><div class="s ${s?s.cls:""}">${s?s.txt:""}</div></div><div class="p">${px(a,S.datos[a.id].precio)}</div></button>`; }).join("")}</div>`);
+}
+function reiniciarCartera(){
+  abrir(`<div class="sheet-head"><h2>Reiniciar cartera</h2><button class="x" onclick="cerrar()" aria-label="Cerrar">×</button></div>
+  <p class="small muted">Se borran las posiciones y el diario simulados. Exportá un respaldo antes si querés guardarlos.</p>
+  <div class="grid2"><label class="f">Capital en pesos<input id="rc-a" type="number" inputmode="decimal" value="${S.cartera.capARS}"></label><label class="f">Capital en USDT<input id="rc-u" type="number" inputmode="decimal" value="${S.cartera.capUSDT}"></label></div>
+  <button class="btn red full" onclick="confirmarReinicio()">Reiniciar</button>`);
+}
+function confirmarReinicio(){
+  const a = +$("#rc-a").value||0, u = +$("#rc-u").value||0;
+  S.cartera = {inicio:hoy(), capARS:a, capUSDT:u, ars:a, usdt:u, lotes:[], diario:[], btcRef:S.datos.BTC ? S.datos.BTC.precio : null};
+  guardar("cartera", S.cartera); cerrar(); toast("Cartera reiniciada"); render();
+}
+
+function contexto(){
+  const lin = [`Fecha: ${new Date().toLocaleString("es-AR")}`, `Regla: entrada -${S.params.entrada}% por tramo bajo media ${S.params.media}d, salida +${S.params.salida}%, ${S.params.tramos} tramos.`];
+  if(S.mep) lin.push(`Dólar MEP: ${Math.round(S.mep)}`);
+  ACTIVOS.forEach(a=>{ const d = S.datos[a.id]; if(!d || d.error){ lin.push(`${a.nombre}: sin datos`); return; } const t = tendencia(d.serie), s = senal(a); lin.push(`${a.nombre} (${a.sector}): ${a.mon==="USDT"?"U$s ":"$"}${d.precio} hoy ${pct(d.var)}; tendencia ${t.txt} (20d ${pct(t.r20)}); señal ${s?s.txt:"—"}`); });
+  const V = valorCartera(), C = S.cartera;
+  lin.push(`Cartera simulada desde ${C.inicio}: disponible $${Math.round(C.ars)} y ${C.usdt.toFixed(2)} USDT; ${C.lotes.length} posiciones${C.lotes.length ? ": " + C.lotes.map(l=>`${l.activo} compra ${l.precio}`).join(", ") : ""}.`);
+  const ub = ultimasFotos(); if(ub.length) lin.push("Bots reales: " + ub.map(f=>`Bot ${f.bot} ganancia $${f.ganancia} sobre $${f.capital} (${f.fecha})`).join("; "));
+  return lin.join("\n").slice(0, 4900);
+}
+function vSocio(){
+  const el = $("#vista-socio");
+  el.innerHTML = `
+  <div class="sec"><p class="eyebrow">Socio IA</p><h1>Hablemos del mercado</h1><p class="small muted">Ve las señales, tendencias, tu cartera simulada y los bots. Analiza y te avisa; las decisiones las tomás vos.</p></div>
+  <div class="msgs" id="msgs">${S.chat.length ? S.chat.map(m=>`<div class="msg ${m.role==="user"?"yo":"ia glass"}">${esc(m.content)}</div>`).join("") :
+    `<div class="card"><p class="small muted">Probá con:</p>${["¿Qué activo está para comprar hoy según la regla?","¿Cómo vienen los bots esta semana?","¿Conviene ajustar el rango del Grid de BTC?"].map(t=>`<button class="btn sm ghost" style="text-align:left" onclick="$('#ch-in').value=this.textContent">${t}</button>`).join("")}</div>`}</div>
+  <form class="chatbar" onsubmit="event.preventDefault();enviar()"><input id="ch-in" placeholder="Escribí tu consulta…" autocomplete="off"><button class="btn gold" id="ch-b">Enviar</button></form>
+  ${S.chat.length ? `<button class="btn ghost sm" onclick="S.chat=[];guardar('chat',[]);vSocio()">Borrar conversación</button>` : ""}`;
+  const m = $("#msgs"); m.lastElementChild && m.lastElementChild.scrollIntoView({block:"end"});
+}
+async function enviar(){
+  const inp = $("#ch-in"), t = inp.value.trim(); if(!t) return;
+  const hist = S.chat.slice(-8);
+  S.chat.push({role:"user", content:t}); inp.value = ""; vSocio();
+  $("#msgs").insertAdjacentHTML("beforeend", `<div class="msg ia glass muted" id="pens">Analizando…</div>`);
+  $("#ch-b").disabled = true;
+  try{
+    const r = await fetch("/api/claude", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({message:t, context:contexto(), history:hist})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error || "No respondió");
+    S.chat.push({role:"assistant", content:d.answer});
+  }catch(e){ S.chat.push({role:"assistant", content:"No pude responder: " + e.message}); }
+  S.chat = S.chat.slice(-30); guardar("chat", S.chat); vSocio();
+}
+
+/* ============ Inicio ============ */
+render();
+cargarTodo();
+setInterval(()=>{ if(!document.hidden) cargarTodo(); }, 5*60*1000);
+if("serviceWorker" in navigator){ navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{}); }
+</script>
+</body>
+</html>

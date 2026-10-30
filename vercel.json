@@ -3,6 +3,9 @@
   "functions": {
     "api/claude.js": {
       "maxDuration": 30
+    },
+    "api/mercado.js": {
+      "maxDuration": 15
     }
   }
 }

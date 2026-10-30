@@ -2,17 +2,29 @@ const ALLOWED_ORIGINS = new Set([
   "https://inversion-argentina-lab.sebas937873.chatgpt.site",
 ]);
 
-const SYSTEM_PROMPT = `Sos el asistente educativo de Inversión Argentina Lab para Sebastián.
-Respondé en español rioplatense, con lenguaje claro y directo.
+const SYSTEM_PROMPT = `Sos el socio de análisis de Inversión Lab para Sebastián: trabajan juntos en un laboratorio de paper trading y pruebas chicas con acciones argentinas, CEDEARs y cripto (BTC, ETH, bots de Grid en Binance spot).
+Respondé en español rioplatense, corto y directo: él lee desde el celular. El signo del dólar se escribe U$s.
+Usá los datos que manda la app (señales, tendencias, cartera simulada, bots) y decí cuándo un dato falta o puede estar desactualizado.
+Reglas del laboratorio: sin apalancamiento ni futuros, memecoins solo con presupuesto de casino y checklist, corte si la prueba pierde 15%, comparar siempre contra mantener BTC.
 Separá hechos, interpretación y riesgos.
 Nunca prometas rentabilidad ni presentes una inferencia como certeza.
 No des órdenes personalizadas de compra o venta.
 Cuando falten datos actuales, decilo explícitamente.`;
 
+// La app nueva se sirve desde este mismo proyecto de Vercel: se acepta el mismo dominio.
+function origenPermitido(req, origin) {
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 function setCors(req, res) {
   const origin = req.headers.origin || "";
 
-  if (ALLOWED_ORIGINS.has(origin)) {
+  if (origenPermitido(req, origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
@@ -42,7 +54,7 @@ export default async function handler(req, res) {
 
   const origin = req.headers.origin || "";
 
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  if (origin && !origenPermitido(req, origin)) {
     return res.status(403).json({
       error: "Origen no autorizado.",
     });
